@@ -30,6 +30,8 @@ gcp-metrics query "..." --since 1h
 gcp-metrics query "..." --since 24h
 ```
 
+The `--since` flag automatically appends `| within <duration>` to your MQL query. If your query already contains a `within` clause, the `--since` flag is ignored. Default time range is 5 minutes.
+
 ### Custom project
 ```bash
 gcp-metrics query "..." --project my-project
