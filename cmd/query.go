@@ -86,11 +86,21 @@ func formatAndPrintError(code, message, query string) error {
 		Query:   query,
 	}
 
-	// Print to stderr for human context
+	// Print to stderr with helpful hints
 	fmt.Fprintf(os.Stderr, "Error: %s\n", message)
+
+	// Add hints based on error type
+	if code == "AUTH_ERROR" {
+		fmt.Fprintln(os.Stderr, "\nRun: gcloud auth application-default login")
+	} else if code == "CONFIG_ERROR" {
+		fmt.Fprintln(os.Stderr, "\nOptions:")
+		fmt.Fprintln(os.Stderr, "  gcp-metrics query \"...\" --project PROJECT_ID")
+		fmt.Fprintln(os.Stderr, "  export GCP_PROJECT=PROJECT_ID")
+		fmt.Fprintln(os.Stderr, "  gcloud config set project PROJECT_ID")
+	}
 
 	// Print JSON to stdout
 	output.FormatError(os.Stdout, errResult)
 
-	return fmt.Errorf(message)
+	return fmt.Errorf("%s", message)
 }
