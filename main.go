@@ -1,8 +1,8 @@
 package main
 
 import (
-	"os"
 	"github.com/moshebeladev/gcp-metrics/cmd"
+	"os"
 )
 
 func main() {

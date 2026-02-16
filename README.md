@@ -1,6 +1,6 @@
 # gcp-metrics
 
-A CLI tool for querying GCP Cloud Monitoring metrics using MQL.
+A CLI tool for querying GCP Cloud Monitoring metrics using PromQL.
 
 ## Installation
 
@@ -21,16 +21,21 @@ go build -o gcp-metrics
 
 ### Basic query
 ```bash
-gcp-metrics query "fetch cloudsql_database | metric 'cloudsql.googleapis.com/database/cpu/utilization'"
+gcp-metrics query "cloudsql_database:database/cpu/utilization"
 ```
 
 ### With time range
 ```bash
-gcp-metrics query "..." --since 1h
-gcp-metrics query "..." --since 24h
+gcp-metrics query "cloudsql_database:database/cpu/utilization" --since 5m
+gcp-metrics query "cloudsql_database:database/cpu/utilization" --since 1h
 ```
 
-The `--since` flag automatically appends `| within <duration>` to your MQL query. If your query already contains a `within` clause, the `--since` flag is ignored. Default time range is 5 minutes.
+The `--since` flag automatically appends a PromQL range selector `[duration]` to your query. If your query already contains a range selector like `[5m]`, the `--since` flag is ignored. Default time range is 5 minutes.
+
+### With label selectors
+```bash
+gcp-metrics query 'cloudsql_database:database/cpu/utilization{database_id="my-instance"}'
+```
 
 ### Custom project
 ```bash

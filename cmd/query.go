@@ -18,9 +18,9 @@ var (
 )
 
 var queryCmd = &cobra.Command{
-	Use:   "query <MQL>",
-	Short: "Execute an MQL query",
-	Long:  `Execute a Monitoring Query Language (MQL) query against GCP Cloud Monitoring.`,
+	Use:   "query <PromQL>",
+	Short: "Execute a PromQL query",
+	Long:  `Execute a Prometheus Query Language (PromQL) query against GCP Cloud Monitoring.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  runQuery,
 }
@@ -33,40 +33,40 @@ func init() {
 
 func runQuery(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
-	mql := args[0]
+	query := args[0]
 
 	// Resolve project
 	project, err := config.ResolveProject(projectID)
 	if err != nil {
-		return formatAndPrintError("CONFIG_ERROR", err.Error(), mql)
+		return formatAndPrintError("CONFIG_ERROR", err.Error(), query)
 	}
 
 	// Parse time range
 	start, end, err := timerange.Parse(since, window)
 	if err != nil {
-		return formatAndPrintError("VALIDATION_ERROR", err.Error(), mql)
+		return formatAndPrintError("VALIDATION_ERROR", err.Error(), query)
 	}
 
 	// Create monitoring client
 	client, err := monitoring.NewClient(ctx)
 	if err != nil {
-		return formatAndPrintError("AUTH_ERROR", fmt.Sprintf("Authentication failed: %v. Run 'gcloud auth application-default login'", err), mql)
+		return formatAndPrintError("AUTH_ERROR", fmt.Sprintf("Authentication failed: %v. Run 'gcloud auth application-default login'", err), query)
 	}
 
 	// Execute query
 	resp, err := client.QueryTimeSeries(ctx, monitoring.QueryTimeSeriesRequest{
 		Project:   project,
-		Query:     mql,
+		Query:     query,
 		StartTime: start,
 		EndTime:   end,
 	})
 	if err != nil {
-		return formatAndPrintError("API_ERROR", err.Error(), mql)
+		return formatAndPrintError("API_ERROR", err.Error(), query)
 	}
 
 	// Format and print result
 	result := &output.QueryResult{
-		Query:      mql,
+		Query:      query,
 		Project:    project,
 		TimeRange:  output.TimeRange{Start: start, End: end},
 		TimeSeries: resp.TimeSeries,
