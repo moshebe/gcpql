@@ -1,0 +1,136 @@
+package cloudsql
+
+import "time"
+
+// CheckResult represents the complete health check output
+type CheckResult struct {
+	Instance     string       `json:"instance"`
+	Project      string       `json:"project"`
+	Region       string       `json:"region"`
+	Timestamp    time.Time    `json:"timestamp"`
+	TimeWindow   string       `json:"timeWindow"`
+	InstanceSize InstanceSize `json:"instance_size"`
+	Resources    Resources    `json:"resources"`
+	Connections  Connections  `json:"connections"`
+	QueryPerf    QueryPerf    `json:"query_performance"`
+	DBHealth     DBHealth     `json:"database_health"`
+	TempData     TempData     `json:"temp_data"`
+	Checkpoints  Checkpoints  `json:"checkpoints"`
+	Replication  Replication  `json:"replication"`
+	Network      Network      `json:"network"`
+	Metadata     Metadata     `json:"metadata"`
+}
+
+// InstanceSize represents vCPU and memory
+type InstanceSize struct {
+	VCPU     int     `json:"vcpu"`
+	MemoryGB float64 `json:"memory_gb"`
+}
+
+// Stats represents statistical aggregates for a metric
+type Stats struct {
+	Current float64 `json:"current,omitempty"`
+	P50     float64 `json:"p50,omitempty"`
+	P99     float64 `json:"p99,omitempty"`
+	Max     float64 `json:"max,omitempty"`
+	Min     float64 `json:"min,omitempty"`
+	Avg     float64 `json:"avg,omitempty"`
+	Unit    string  `json:"unit"`
+}
+
+// Resources represents CPU, memory, and disk metrics
+type Resources struct {
+	CPU    CPUMetrics    `json:"cpu"`
+	Memory MemoryMetrics `json:"memory"`
+	Disk   DiskMetrics   `json:"disk"`
+}
+
+// CPUMetrics represents CPU utilization and cores
+type CPUMetrics struct {
+	Utilization   Stats `json:"utilization"`
+	ReservedCores int   `json:"reserved_cores"`
+}
+
+// MemoryMetrics represents memory usage
+type MemoryMetrics struct {
+	Utilization Stats `json:"utilization"`
+	QuotaBytes  int64 `json:"quota_bytes"`
+	UsageBytes  int64 `json:"usage_bytes"`
+}
+
+// DiskMetrics represents disk usage and I/O
+type DiskMetrics struct {
+	Utilization Stats `json:"utilization"`
+	QuotaBytes  int64 `json:"quota_bytes"`
+	BytesUsed   int64 `json:"bytes_used"`
+	ReadOps     Stats `json:"read_ops"`
+	WriteOps    Stats `json:"write_ops"`
+}
+
+// Connections represents connection metrics
+type Connections struct {
+	Count          Stats               `json:"count"`
+	MaxConnections int                 `json:"max_connections"`
+	ByStatus       ConnectionsByStatus `json:"by_status"`
+}
+
+// ConnectionsByStatus breaks down connections by state
+type ConnectionsByStatus struct {
+	Active                   int `json:"active"`
+	Idle                     int `json:"idle"`
+	IdleInTransaction        int `json:"idle_in_transaction"`
+	IdleInTransactionAborted int `json:"idle_in_transaction_aborted"`
+}
+
+// QueryPerf represents query performance metrics
+type QueryPerf struct {
+	Available      bool  `json:"available"`
+	LatencyUS      Stats `json:"latency_us,omitempty"`
+	DatabaseLoadUS Stats `json:"database_load_us,omitempty"`
+	IOTimeUS       Stats `json:"io_time_us,omitempty"`
+	LockTimeUS     Stats `json:"lock_time_us,omitempty"`
+	RowsProcessed  int64 `json:"rows_processed,omitempty"`
+}
+
+// DBHealth represents database health metrics
+type DBHealth struct {
+	TransactionIDUtilization Stats `json:"transaction_id_utilization"`
+	TransactionCount         int64 `json:"transaction_count"`
+	OldestTransactionAgeSec  int64 `json:"oldest_transaction_age_seconds"`
+	DeadlockCount            int   `json:"deadlock_count"`
+	AutovacuumCount          int   `json:"autovacuum_count"`
+	VacuumCount              int   `json:"vacuum_count"`
+}
+
+// TempData represents temp data metrics
+type TempData struct {
+	BytesWritten int64  `json:"bytes_written"`
+	FilesCreated int    `json:"files_created"`
+	Unit         string `json:"unit"`
+}
+
+// Checkpoints represents checkpoint performance
+type Checkpoints struct {
+	SyncLatencyMS  Stats `json:"sync_latency_ms"`
+	WriteLatencyMS Stats `json:"write_latency_ms"`
+}
+
+// Replication represents replication lag
+type Replication struct {
+	ReplicaLagBytes   Stats `json:"replica_lag_bytes"`
+	ReplicaLagSeconds Stats `json:"replica_lag_seconds"`
+}
+
+// Network represents network throughput
+type Network struct {
+	IngressBytes int64  `json:"ingress_bytes"`
+	EgressBytes  int64  `json:"egress_bytes"`
+	Unit         string `json:"unit"`
+}
+
+// Metadata represents collection metadata
+type Metadata struct {
+	MetricsCollected     int      `json:"metrics_collected"`
+	MetricsUnavailable   []string `json:"metrics_unavailable"`
+	CollectionDurationMS int64    `json:"collection_duration_ms"`
+}
