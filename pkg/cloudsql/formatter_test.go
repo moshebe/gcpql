@@ -51,3 +51,67 @@ func TestFormatJSON(t *testing.T) {
 		t.Errorf("CPU cores = %v, want 4", parsed.Resources.CPU.ReservedCores)
 	}
 }
+
+func TestFormatTable(t *testing.T) {
+	result := &CheckResult{
+		Instance:   "project:instance",
+		Project:    "test-project",
+		Region:     "us-central1",
+		TimeWindow: "24h",
+		InstanceSize: InstanceSize{
+			VCPU:     4,
+			MemoryGB: 16,
+		},
+		Resources: Resources{
+			CPU: CPUMetrics{
+				Utilization: Stats{
+					Current: 0.45,
+					P50:     0.42,
+					P99:     0.78,
+					Max:     0.89,
+					Unit:    "percent",
+				},
+				ReservedCores: 4,
+			},
+			Memory: MemoryMetrics{
+				Utilization: Stats{
+					Current: 0.67,
+					P50:     0.65,
+					P99:     0.82,
+					Max:     0.85,
+					Unit:    "percent",
+				},
+			},
+		},
+		Connections: Connections{
+			Count: Stats{
+				Current: 45,
+				P50:     42,
+				P99:     89,
+				Max:     95,
+			},
+			MaxConnections: 100,
+		},
+	}
+
+	var buf bytes.Buffer
+	err := FormatTable(&buf, result)
+	if err != nil {
+		t.Fatalf("FormatTable() error = %v", err)
+	}
+
+	output := buf.String()
+
+	// Verify output contains key sections
+	if !bytes.Contains([]byte(output), []byte("RESOURCES")) {
+		t.Error("Table output missing RESOURCES section")
+	}
+
+	if !bytes.Contains([]byte(output), []byte("CONNECTIONS")) {
+		t.Error("Table output missing CONNECTIONS section")
+	}
+
+	if !bytes.Contains([]byte(output), []byte("4 vCPU")) {
+		t.Error("Table output missing instance size")
+	}
+}
