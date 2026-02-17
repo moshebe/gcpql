@@ -40,6 +40,9 @@ func NewClient(ctx context.Context) (*Client, error) {
 func (c *Client) QueryTimeSeries(ctx context.Context, req QueryTimeSeriesRequest) (*QueryTimeSeriesResponse, error) {
 	query := req.Query
 
+	// GCP requires metric names with dots/slashes to use __name__ label selector format
+	query = normalizeMetricQuery(query)
+
 	// PromQL queries use range vector syntax [5m] for time ranges
 	// If user provided time range and query doesn't already have range selector, append it
 	if !req.StartTime.IsZero() && !req.EndTime.IsZero() && !hasRangeSelector(query) {
@@ -112,6 +115,24 @@ func (c *Client) QueryTimeSeries(ctx context.Context, req QueryTimeSeriesRequest
 	return &QueryTimeSeriesResponse{
 		TimeSeries: promResp.Data.Result,
 	}, nil
+}
+
+// normalizeMetricQuery wraps simple metric names in GCP's required __name__ format
+func normalizeMetricQuery(query string) string {
+	query = strings.TrimSpace(query)
+
+	// If already has braces, assume it's valid PromQL
+	if strings.Contains(query, "{") {
+		return query
+	}
+
+	// If contains dots or slashes (GCP metric names), wrap in __name__ selector
+	if strings.Contains(query, ".") || strings.Contains(query, "/") {
+		return fmt.Sprintf(`{__name__="%s"}`, query)
+	}
+
+	// Otherwise, return as-is
+	return query
 }
 
 // hasRangeSelector checks if query already has a PromQL range selector like [5m]
