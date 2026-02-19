@@ -72,7 +72,7 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 			total_slot_ms,
 			total_bytes_processed,
 			TIMESTAMP_DIFF(end_time, creation_time, SECOND) as duration_seconds,
-			cache_hit,
+			COALESCE(cache_hit, false) AS cache_hit,
 			creation_time as start_time
 		FROM `+"`%s.region-%s`"+`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
 		WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL %s)
@@ -103,14 +103,14 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 	var results []ExpensiveQuery
 	for {
 		var row struct {
-			JobID               string
-			UserEmail           string
-			Query               string
-			TotalSlotMS         int64
-			TotalBytesProcessed int64
-			DurationSeconds     float64
-			CacheHit            bool
-			StartTime           time.Time
+			JobID               string    `bigquery:"job_id"`
+			UserEmail           string    `bigquery:"user_email"`
+			Query               string    `bigquery:"query"`
+			TotalSlotMS         int64     `bigquery:"total_slot_ms"`
+			TotalBytesProcessed int64 `bigquery:"total_bytes_processed"`
+			DurationSeconds     int64 `bigquery:"duration_seconds"`
+			CacheHit            bool  `bigquery:"cache_hit"`
+			StartTime           time.Time `bigquery:"start_time"`
 		}
 
 		err := it.Next(&row)
@@ -136,7 +136,7 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 			Query:           query,
 			SlotMS:          row.TotalSlotMS,
 			BytesProcessed:  row.TotalBytesProcessed,
-			DurationSeconds: row.DurationSeconds,
+			DurationSeconds: float64(row.DurationSeconds),
 			CacheHit:        row.CacheHit,
 			StartTime:       row.StartTime,
 			EstimatedCost:   estimatedCost,
@@ -156,7 +156,7 @@ func (c *Client) QueryJobsSummary(ctx context.Context, opts JobQueryOptions) (Jo
 		SELECT
 			COUNT(*) AS total_jobs,
 			COUNTIF(error_result IS NOT NULL) AS failed_jobs,
-			COUNTIF(cache_hit) AS cache_hits,
+			COUNTIF(COALESCE(cache_hit, false)) AS cache_hits,
 			COALESCE(SUM(total_bytes_processed), 0) AS total_bytes
 		FROM `+"`%s.region-%s`"+`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
 		WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL %s)
@@ -175,10 +175,10 @@ func (c *Client) QueryJobsSummary(ctx context.Context, opts JobQueryOptions) (Jo
 	}
 
 	var row struct {
-		TotalJobs  int64
-		FailedJobs int64
-		CacheHits  int64
-		TotalBytes int64
+		TotalJobs  int64 `bigquery:"total_jobs"`
+		FailedJobs int64 `bigquery:"failed_jobs"`
+		CacheHits  int64 `bigquery:"cache_hits"`
+		TotalBytes int64 `bigquery:"total_bytes"`
 	}
 	if err := it.Next(&row); err != nil {
 		return JobsSummary{}, fmt.Errorf("read row: %w", err)
