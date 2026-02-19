@@ -167,6 +167,44 @@ func TestFormatTable_Recommendations(t *testing.T) {
 	}
 }
 
+func TestFormatTable_XIDInDerivedInsights(t *testing.T) {
+	result := &CheckResult{}
+	result.DerivedInsights.XIDWraparoundRisk = 72.5
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "XID Wraparound Risk") {
+		t.Error("missing XID Wraparound Risk in DERIVED INSIGHTS")
+	}
+	if !strings.Contains(out, "72.5%") {
+		t.Error("missing XID risk percentage")
+	}
+	// DATABASE HEALTH section should not appear when there are no deadlocks/vacuums
+	if strings.Contains(out, "DATABASE HEALTH") {
+		t.Error("DATABASE HEALTH should be hidden when nothing actionable")
+	}
+}
+
+func TestFormatTable_DBHealthShownWhenDeadlocks(t *testing.T) {
+	result := &CheckResult{}
+	result.DBHealth.DeadlockCount = 5
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "DATABASE HEALTH") {
+		t.Error("DATABASE HEALTH should appear when deadlocks > 0")
+	}
+	if !strings.Contains(out, "Deadlocks") {
+		t.Error("deadlock row should appear")
+	}
+}
+
 func TestFormatTable_QueryInsightsOmittedWhenEmpty(t *testing.T) {
 	result := &CheckResult{}
 

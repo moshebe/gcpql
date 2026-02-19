@@ -42,6 +42,10 @@ func getTransactionAgeStatus(age int64) string {
 	return getStatusIndicator(ageFloat, 60.0, 300.0, false)
 }
 
+func getXIDWraparoundStatus(pct float64) string {
+	return getStatusIndicator(pct, 50.0, 80.0, false)
+}
+
 // FormatJSON writes the check result as JSON
 func FormatJSON(w io.Writer, result *CheckResult) error {
 	encoder := json.NewEncoder(w)
@@ -166,6 +170,16 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 			"Oldest Transaction Age",
 			fmt.Sprintf("%ds", result.DerivedInsights.OldestTransactionAgeSec),
 			status,
+		})
+	}
+
+	// XID wraparound risk (PostgreSQL 32-bit transaction ID exhaustion)
+	if result.DerivedInsights.XIDWraparoundRisk > 0 {
+		xid := result.DerivedInsights.XIDWraparoundRisk
+		t.AppendRow(table.Row{
+			"XID Wraparound Risk",
+			fmt.Sprintf("%.1f%%", xid),
+			getXIDWraparoundStatus(xid),
 		})
 	}
 
@@ -410,48 +424,37 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		fmt.Fprintln(w)
 	}
 
-	// DATABASE HEALTH table
-	t = table.NewWriter()
-	t.SetOutputMirror(w)
-	t.SetStyle(table.StyleLight)
-	t.SetTitle("DATABASE HEALTH")
-	t.AppendHeader(table.Row{"Metric", "Current", "P50", "P99", "Unit"})
+	// DATABASE HEALTH table — only rendered when there's something actionable.
+	// XID wraparound risk is surfaced in DERIVED INSIGHTS above.
+	dbh := result.DBHealth
+	hasDBHealth := dbh.DeadlockCount > 0 || dbh.OldestTransactionAgeSec > 0 ||
+		dbh.AutovacuumCount > 0 || dbh.AnalyzeCount > 0 || dbh.VacuumCount > 0
+	if hasDBHealth {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
+		t.SetTitle("DATABASE HEALTH")
+		t.AppendHeader(table.Row{"Metric", "Value"})
 
-	txUtil := result.DBHealth.TransactionIDUtilization
-	t.AppendRow(table.Row{
-		"Transaction ID Utilization",
-		formatPercent(txUtil.Current),
-		formatPercent(txUtil.P50),
-		formatPercent(txUtil.P99),
-		"%",
-	})
+		if dbh.DeadlockCount > 0 {
+			t.AppendRow(table.Row{"Deadlocks (current)", dbh.DeadlockCount})
+		}
+		if dbh.OldestTransactionAgeSec > 0 {
+			t.AppendRow(table.Row{"Oldest Open Transaction", fmt.Sprintf("%ds", dbh.OldestTransactionAgeSec)})
+		}
+		if dbh.AutovacuumCount > 0 {
+			t.AppendRow(table.Row{"Autovacuum Runs", dbh.AutovacuumCount})
+		}
+		if dbh.AnalyzeCount > 0 {
+			t.AppendRow(table.Row{"Analyze Runs", dbh.AnalyzeCount})
+		}
+		if dbh.VacuumCount > 0 {
+			t.AppendRow(table.Row{"Manual Vacuum Runs", dbh.VacuumCount})
+		}
 
-	t.AppendRow(table.Row{
-		"Deadlock Count",
-		result.DBHealth.DeadlockCount,
-		"-", "-", "",
-	})
-
-	if result.DBHealth.OldestTransactionAgeSec > 0 {
-		t.AppendRow(table.Row{
-			"Oldest Transaction Age",
-			fmt.Sprintf("%ds", result.DBHealth.OldestTransactionAgeSec),
-			"-", "-", "s",
-		})
+		t.Render()
+		fmt.Fprintln(w)
 	}
-
-	if result.DBHealth.AutovacuumCount > 0 {
-		t.AppendRow(table.Row{"Autovacuum Count", result.DBHealth.AutovacuumCount, "-", "-", ""})
-	}
-	if result.DBHealth.AnalyzeCount > 0 {
-		t.AppendRow(table.Row{"Analyze Count", result.DBHealth.AnalyzeCount, "-", "-", ""})
-	}
-	if result.DBHealth.VacuumCount > 0 {
-		t.AppendRow(table.Row{"Vacuum Count", result.DBHealth.VacuumCount, "-", "-", ""})
-	}
-
-	t.Render()
-	fmt.Fprintln(w)
 
 	// CHECKPOINTS table (skip if no data)
 	cp := result.Checkpoints
@@ -533,7 +536,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
 		t.SetStyle(table.StyleLight)
-		t.SetTitle("QUERY INSIGHTS — Top Connections by Execution Time")
+		t.SetTitle("QUERY INSIGHTS — Top Users by Execution Time (aggregated by user/database, no per-query breakdown)")
 		t.AppendHeader(table.Row{"#", "User", "Database", "Client", "Samples", "Avg (ms)", "Total (ms)"})
 		for i, q := range result.QueryInsights.TopQueries {
 			t.AppendRow(table.Row{
