@@ -19,6 +19,9 @@ type CheckResult struct {
 	Checkpoints     Checkpoints       `json:"checkpoints"`
 	Replication     Replication       `json:"replication"`
 	Network         Network           `json:"network"`
+	InstanceConfig  InstanceConfig    `json:"instance_config"`
+	Recommendations Recommendations   `json:"recommendations"`
+	QueryInsights   QueryInsights     `json:"query_insights"`
 	Cache           CacheMetrics      `json:"cache"`
 	Throughput      ThroughputMetrics `json:"throughput"`
 	DerivedInsights DerivedInsights   `json:"derived_insights"`
@@ -161,6 +164,58 @@ type Network struct {
 	IngressBytes int64  `json:"ingress_bytes"`
 	EgressBytes  int64  `json:"egress_bytes"`
 	Unit         string `json:"unit"`
+}
+
+// DBFlag represents a database flag name/value pair
+type DBFlag struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// InstanceConfig holds enriched config from the Cloud SQL Admin API
+type InstanceConfig struct {
+	Labels               map[string]string `json:"labels,omitempty"`
+	AvailabilityType     string            `json:"availability_type,omitempty"`        // "ZONAL" | "REGIONAL"
+	BackupEnabled        bool              `json:"backup_enabled"`
+	BackupStartTime      string            `json:"backup_start_time,omitempty"`
+	PITREnabled          bool              `json:"pitr_enabled"`
+	StorageType          string            `json:"storage_type,omitempty"`             // "PD_SSD" | "PD_HDD"
+	StorageAutoResize    bool              `json:"storage_auto_resize"`
+	StorageAutoResizeGB  int64             `json:"storage_auto_resize_limit_gb,omitempty"`
+	DatabaseFlags        []DBFlag          `json:"database_flags,omitempty"`
+	QueryInsightsEnabled bool              `json:"query_insights_enabled"`
+	DeletionProtection   bool              `json:"deletion_protection"`
+	State                string            `json:"state,omitempty"`
+	ConnectionName       string            `json:"connection_name,omitempty"`
+}
+
+// Recommendation is a single Cloud Recommender suggestion
+type Recommendation struct {
+	Description string `json:"description"`
+	Impact      string `json:"impact"` // "HIGH" | "MEDIUM" | "LOW"
+	State       string `json:"state"`  // "ACTIVE" | "DISMISSED"
+}
+
+// Recommendations holds Cloud Recommender results
+type Recommendations struct {
+	Available bool             `json:"available"`
+	Items     []Recommendation `json:"items,omitempty"`
+}
+
+// TopQuery is one row in the Query Insights top-queries list
+type TopQuery struct {
+	QueryText       string  `json:"query_text,omitempty"`
+	QueryHash       string  `json:"query_hash,omitempty"`
+	CallCount       int64   `json:"call_count"`
+	AvgLatencyMS    float64 `json:"avg_latency_ms"`
+	TotalTimeMS     float64 `json:"total_time_ms"`
+	AvgRowsReturned float64 `json:"avg_rows_returned"`
+}
+
+// QueryInsights holds top-N query data (only populated with --query-insights)
+type QueryInsights struct {
+	Available  bool       `json:"available"`
+	TopQueries []TopQuery `json:"top_queries,omitempty"`
 }
 
 // Metadata represents collection metadata
