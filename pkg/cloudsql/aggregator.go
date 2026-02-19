@@ -2,11 +2,15 @@ package cloudsql
 
 import "sort"
 
-// CalculateStats calculates statistical aggregates from time series points
+// CalculateStats calculates statistical aggregates from time series points.
+// Points are expected in time-ascending order (PromQL returns them this way).
 func CalculateStats(points []float64, unit string) Stats {
 	if len(points) == 0 {
 		return Stats{Unit: unit}
 	}
+
+	// Capture most-recent value before sorting (last element = most recent in PromQL)
+	current := points[len(points)-1]
 
 	// Sort for percentile calculations
 	sorted := make([]float64, len(points))
@@ -14,7 +18,7 @@ func CalculateStats(points []float64, unit string) Stats {
 	sort.Float64s(sorted)
 
 	return Stats{
-		Current: sorted[len(sorted)-1], // Most recent (assumes sorted by time originally)
+		Current: current,
 		P50:     percentile(sorted, 0.50),
 		P99:     percentile(sorted, 0.99),
 		Max:     sorted[len(sorted)-1],

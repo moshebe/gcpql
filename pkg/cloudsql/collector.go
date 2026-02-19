@@ -50,13 +50,22 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 	start := time.Now().Add(-since)
 	end := time.Now()
 
+	// Fetch instance metadata from Cloud SQL Admin API first.
+	// This gives us region, database version, and authoritative max_connections.
+	instanceInfo, err := FetchInstanceInfo(ctx, c.client.HTTPClient(), project, instance)
+	if err != nil {
+		return nil, fmt.Errorf("cloud SQL admin API: %w", err)
+	}
+
 	databaseID := fmt.Sprintf("%s:%s", project, instance)
 
 	result := &CheckResult{
-		Instance:   databaseID,
-		Project:    project,
-		Timestamp:  end,
-		TimeWindow: formatDuration(since),
+		Instance:        databaseID,
+		Project:         project,
+		Region:          instanceInfo.Region,
+		DatabaseVersion: instanceInfo.DatabaseVersion,
+		Timestamp:       end,
+		TimeWindow:      formatDuration(since),
 		Metadata: Metadata{
 			MetricsUnavailable: []string{},
 		},
@@ -115,6 +124,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 	// Collect results
 	metricData := make(map[string][]float64)
 	var unavailable []string
+	noDataCount := 0
 
 	for i := 0; i < len(metrics); i++ {
 		res := <-results
@@ -122,13 +132,21 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 			unavailable = append(unavailable, res.name)
 			continue
 		}
+		if len(res.points) == 0 {
+			noDataCount++
+		}
 		metricData[res.name] = res.points
 	}
 
 	// Populate result structure
 	c.populateResult(result, metricData)
+
+	// Override max_connections with authoritative value from Admin API.
+	result.Connections.MaxConnections = instanceInfo.MaxConnections
+
 	result.Metadata.MetricsUnavailable = unavailable
 	result.Metadata.MetricsCollected = len(metrics) - len(unavailable)
+	result.Metadata.MetricsNoData = noDataCount
 	result.Metadata.CollectionDurationMS = time.Since(startTime).Milliseconds()
 
 	// Compute derived metrics
@@ -279,6 +297,9 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	}
 	if points, ok := data["autovacuum_count"]; ok && len(points) > 0 {
 		result.DBHealth.AutovacuumCount = int(points[len(points)-1])
+	}
+	if points, ok := data["analyze_count"]; ok && len(points) > 0 {
+		result.DBHealth.AnalyzeCount = int(points[len(points)-1])
 	}
 	if points, ok := data["vacuum_count"]; ok && len(points) > 0 {
 		result.DBHealth.VacuumCount = int(points[len(points)-1])

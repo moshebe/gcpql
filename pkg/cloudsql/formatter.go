@@ -133,8 +133,8 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	t.AppendRow(table.Row{
 		"Disk Usage",
 		formatPercent(result.Resources.Disk.Utilization.Current),
-		"-",
-		"-",
+		formatPercent(result.Resources.Disk.Utilization.P50),
+		formatPercent(result.Resources.Disk.Utilization.P99),
 		formatPercent(result.Resources.Disk.Utilization.Max),
 		"%",
 	})
@@ -322,6 +322,103 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 
 	t.Render()
 	fmt.Fprintln(w)
+
+	// DATABASE HEALTH table
+	t = table.NewWriter()
+	t.SetOutputMirror(w)
+	t.SetTitle("DATABASE HEALTH")
+	t.AppendHeader(table.Row{"Metric", "Current", "P50", "P99", "Unit"})
+
+	txUtil := result.DBHealth.TransactionIDUtilization
+	t.AppendRow(table.Row{
+		"Transaction ID Utilization",
+		formatPercent(txUtil.Current),
+		formatPercent(txUtil.P50),
+		formatPercent(txUtil.P99),
+		"%",
+	})
+
+	t.AppendRow(table.Row{
+		"Deadlock Count",
+		result.DBHealth.DeadlockCount,
+		"-", "-", "",
+	})
+
+	if result.DBHealth.OldestTransactionAgeSec > 0 {
+		t.AppendRow(table.Row{
+			"Oldest Transaction Age",
+			fmt.Sprintf("%ds", result.DBHealth.OldestTransactionAgeSec),
+			"-", "-", "s",
+		})
+	}
+
+	if result.DBHealth.AutovacuumCount > 0 {
+		t.AppendRow(table.Row{"Autovacuum Count", result.DBHealth.AutovacuumCount, "-", "-", ""})
+	}
+	if result.DBHealth.AnalyzeCount > 0 {
+		t.AppendRow(table.Row{"Analyze Count", result.DBHealth.AnalyzeCount, "-", "-", ""})
+	}
+	if result.DBHealth.VacuumCount > 0 {
+		t.AppendRow(table.Row{"Vacuum Count", result.DBHealth.VacuumCount, "-", "-", ""})
+	}
+
+	t.Render()
+	fmt.Fprintln(w)
+
+	// CHECKPOINTS table
+	t = table.NewWriter()
+	t.SetOutputMirror(w)
+	t.SetTitle("CHECKPOINTS")
+	t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
+
+	if result.Checkpoints.SyncLatencyMS.P50 > 0 || result.Checkpoints.SyncLatencyMS.P99 > 0 {
+		t.AppendRow(table.Row{
+			"Sync Latency",
+			formatFloat(result.Checkpoints.SyncLatencyMS.P50),
+			formatFloat(result.Checkpoints.SyncLatencyMS.P99),
+			"ms",
+		})
+	}
+	if result.Checkpoints.WriteLatencyMS.P50 > 0 || result.Checkpoints.WriteLatencyMS.P99 > 0 {
+		t.AppendRow(table.Row{
+			"Write Latency",
+			formatFloat(result.Checkpoints.WriteLatencyMS.P50),
+			formatFloat(result.Checkpoints.WriteLatencyMS.P99),
+			"ms",
+		})
+	}
+
+	t.Render()
+	fmt.Fprintln(w)
+
+	// REPLICATION table (skip if no data)
+	if result.Replication.ReplicaLagBytes.P50 > 0 || result.Replication.ReplicaLagBytes.P99 > 0 ||
+		result.Replication.ReplicaLagSeconds.P50 > 0 || result.Replication.ReplicaLagSeconds.P99 > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("REPLICATION")
+		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
+
+		if result.Replication.ReplicaLagBytes.P50 > 0 || result.Replication.ReplicaLagBytes.P99 > 0 {
+			t.AppendRow(table.Row{
+				"Replica Lag",
+				formatFloat(result.Replication.ReplicaLagBytes.P50),
+				formatFloat(result.Replication.ReplicaLagBytes.P99),
+				"bytes",
+			})
+		}
+		if result.Replication.ReplicaLagSeconds.P50 > 0 || result.Replication.ReplicaLagSeconds.P99 > 0 {
+			t.AppendRow(table.Row{
+				"Replica Lag",
+				formatFloat(result.Replication.ReplicaLagSeconds.P50),
+				formatFloat(result.Replication.ReplicaLagSeconds.P99),
+				"s",
+			})
+		}
+
+		t.Render()
+		fmt.Fprintln(w)
+	}
 
 	return nil
 }

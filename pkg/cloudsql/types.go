@@ -7,6 +7,7 @@ type CheckResult struct {
 	Instance        string            `json:"instance"`
 	Project         string            `json:"project"`
 	Region          string            `json:"region"`
+	DatabaseVersion string            `json:"database_version,omitempty"`
 	Timestamp       time.Time         `json:"timestamp"`
 	TimeWindow      string            `json:"timeWindow"`
 	InstanceSize    InstanceSize      `json:"instance_size"`
@@ -132,6 +133,7 @@ type DBHealth struct {
 	OldestTransactionAgeSec  int64 `json:"oldest_transaction_age_seconds"`
 	DeadlockCount            int   `json:"deadlock_count"`
 	AutovacuumCount          int   `json:"autovacuum_count"`
+	AnalyzeCount             int   `json:"analyze_count"`
 	VacuumCount              int   `json:"vacuum_count"`
 }
 
@@ -164,6 +166,7 @@ type Network struct {
 // Metadata represents collection metadata
 type Metadata struct {
 	MetricsCollected     int      `json:"metrics_collected"`
+	MetricsNoData        int      `json:"metrics_no_data"`
 	MetricsUnavailable   []string `json:"metrics_unavailable"`
 	CollectionDurationMS int64    `json:"collection_duration_ms"`
 }

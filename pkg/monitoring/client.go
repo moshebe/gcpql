@@ -23,9 +23,13 @@ type Client struct {
 
 // NewClient creates a new monitoring client using Application Default Credentials
 func NewClient(ctx context.Context) (*Client, error) {
-	// Create authenticated HTTP client using ADC
+	// Create authenticated HTTP client using ADC.
+	// Includes sqladmin scope so the same client can call the Cloud SQL Admin API.
 	httpClient, _, err := transport.NewHTTPClient(ctx,
-		option.WithScopes("https://www.googleapis.com/auth/monitoring.read"))
+		option.WithScopes(
+			"https://www.googleapis.com/auth/monitoring.read",
+			"https://www.googleapis.com/auth/sqlservice.admin",
+		))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create authenticated HTTP client: %w", err)
 	}
@@ -34,6 +38,12 @@ func NewClient(ctx context.Context) (*Client, error) {
 		httpClient: httpClient,
 		baseURL:    "https://monitoring.googleapis.com",
 	}, nil
+}
+
+// HTTPClient returns the underlying authenticated HTTP client.
+// It can be reused to call other GCP APIs (e.g., Cloud SQL Admin API).
+func (c *Client) HTTPClient() *http.Client {
+	return c.httpClient
 }
 
 // QueryTimeSeries executes a PromQL query

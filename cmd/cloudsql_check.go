@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/moshebeladev/gcp-metrics/internal/config"
 	"github.com/moshebeladev/gcp-metrics/pkg/cloudsql"
 	"github.com/moshebeladev/gcp-metrics/pkg/monitoring"
+	"github.com/moshebeladev/gcp-metrics/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 
@@ -46,11 +46,12 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	instanceID := args[0]
 
-	// Parse time window
-	sinceDuration, err := time.ParseDuration(checkSince)
+	// Parse time window (supports m, h, d suffixes)
+	start, end, err := timerange.Parse(checkSince, "")
 	if err != nil {
 		return fmt.Errorf("invalid --since value: %w", err)
 	}
+	sinceDuration := end.Sub(start)
 
 	// Resolve project
 	resolvedProject, err := config.ResolveProject(projectID)
