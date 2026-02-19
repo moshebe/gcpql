@@ -3,9 +3,11 @@ package bigquery
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"google.golang.org/api/iterator"
 )
 
 // Client wraps BigQuery and Monitoring clients
@@ -53,4 +55,90 @@ type JobQueryOptions struct {
 	OrderBy    string
 	UserEmail  string
 	JobPattern string
+}
+
+// QueryJobs fetches job history from INFORMATION_SCHEMA
+func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]ExpensiveQuery, error) {
+	if c.bqClient == nil {
+		return nil, fmt.Errorf("bigquery client not initialized")
+	}
+
+	// Build INFORMATION_SCHEMA query
+	query := fmt.Sprintf(`
+		SELECT
+			job_id,
+			user_email,
+			query,
+			total_slot_ms,
+			total_bytes_processed,
+			TIMESTAMP_DIFF(end_time, creation_time, SECOND) as duration_seconds,
+			creation_time as start_time
+		FROM `+"`%s.region-%s`"+`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+		WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL %s)
+			AND job_type = 'QUERY'
+			AND state = 'DONE'`,
+		c.project, c.location, opts.Since)
+
+	if opts.Dataset != "" {
+		query += fmt.Sprintf(" AND referenced_tables LIKE '%%%s%%'", opts.Dataset)
+	}
+
+	if opts.OrderBy == "" {
+		opts.OrderBy = "total_bytes_processed DESC"
+	}
+	query += " ORDER BY " + opts.OrderBy
+
+	if opts.Limit == 0 {
+		opts.Limit = 10
+	}
+	query += fmt.Sprintf(" LIMIT %d", opts.Limit)
+
+	q := c.bqClient.Query(query)
+	it, err := q.Read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("execute query: %w", err)
+	}
+
+	var results []ExpensiveQuery
+	for {
+		var row struct {
+			JobID               string
+			UserEmail           string
+			Query               string
+			TotalSlotMS         int64
+			TotalBytesProcessed int64
+			DurationSeconds     float64
+			StartTime           time.Time
+		}
+
+		err := it.Next(&row)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read row: %w", err)
+		}
+
+		// Truncate query to 200 chars
+		query := row.Query
+		if len(query) > 200 {
+			query = query[:197] + "..."
+		}
+
+		// Estimate cost: $5 per TB
+		estimatedCost := float64(row.TotalBytesProcessed) / 1e12 * 5.0
+
+		results = append(results, ExpensiveQuery{
+			JobID:           row.JobID,
+			UserEmail:       row.UserEmail,
+			Query:           query,
+			SlotMS:          row.TotalSlotMS,
+			BytesProcessed:  row.TotalBytesProcessed,
+			DurationSeconds: row.DurationSeconds,
+			StartTime:       row.StartTime,
+			EstimatedCost:   estimatedCost,
+		})
+	}
+
+	return results, nil
 }

@@ -278,8 +278,17 @@ func collectCostMetrics(ctx context.Context, client *Client, opts CheckOptions) 
 
 // collectTopQueries fetches expensive queries from INFORMATION_SCHEMA
 func collectTopQueries(ctx context.Context, client *Client, opts CheckOptions) ([]ExpensiveQuery, error) {
-	// TODO: Query INFORMATION_SCHEMA.JOBS_BY_PROJECT
+	jobOpts := JobQueryOptions{
+		Since:   formatDuration(opts.Since),
+		Dataset: opts.Dataset,
+		Limit:   10,
+		OrderBy: "total_bytes_processed DESC",
+	}
 
-	// Placeholder implementation
-	return []ExpensiveQuery{}, fmt.Errorf("not implemented")
+	queries, err := client.QueryJobs(ctx, jobOpts)
+	if err != nil {
+		return nil, fmt.Errorf("query jobs: %w", err)
+	}
+
+	return queries, nil
 }
