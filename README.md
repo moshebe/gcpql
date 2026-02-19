@@ -60,6 +60,43 @@ gcp-metrics query "..."
 
 ## CloudSQL Commands
 
+### List instances
+
+List all CloudSQL instances in a project with live CPU and memory utilization:
+
+```bash
+# Table output (default)
+gcp-metrics cloudsql list --project my-project
+
+# JSON output
+gcp-metrics cloudsql list --project my-project --format json
+
+# Custom time window for metrics
+gcp-metrics cloudsql list --project my-project --since 15m
+```
+
+**Columns:** INSTANCE, STATE, VERSION, REGION, CPU, MEM, vCPU, RAM
+
+**Example output:**
+```
+Project: my-project  (2 instances)
+
+┌──────────────────────────┬─────────┬─────────────┬─────────────┬──────────┬──────────┬──────┬──────┐
+│ INSTANCE                 │ STATE   │ VERSION     │ REGION      │ CPU      │ MEM      │ vCPU │ RAM  │
+├──────────────────────────┼─────────┼─────────────┼─────────────┼──────────┼──────────┼──────┼──────┤
+│ my-project:prod-db       │ RUNNABLE│ POSTGRES_15 │ us-central1 │ 🟢 42%  │ 🟡 71%  │ 4    │ 15GB │
+│ my-project:staging-db    │ RUNNABLE│ POSTGRES_14 │ us-east1    │ 🟢  8%  │ 🟢 34%  │ 2    │ 8GB  │
+└──────────────────────────┴─────────┴─────────────┴─────────────┴──────────┴──────────┴──────┴──────┘
+```
+
+**Status indicators:**
+- 🟢 Good: CPU/Memory < 70%
+- 🟡 Warning: CPU/Memory 70–90%
+- 🔴 Critical: CPU/Memory ≥ 90%
+- `-` No monitoring data (instance stopped or metrics delayed)
+
+**Note:** Requires `roles/monitoring.viewer` + `roles/cloudsql.viewer` (or `roles/cloudsql.admin`).
+
 ### Check instance health
 
 Get comprehensive CloudSQL instance metrics:
