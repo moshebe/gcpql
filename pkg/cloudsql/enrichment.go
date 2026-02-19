@@ -78,7 +78,9 @@ func priorityToImpact(priority string) string {
 		return "HIGH"
 	case "P2":
 		return "MEDIUM"
-	default:
+	case "P3", "P4":
 		return "LOW"
+	default:
+		return "UNKNOWN"
 	}
 }

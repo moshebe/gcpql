@@ -95,7 +95,7 @@ func TestPriorityToImpact(t *testing.T) {
 		{"P2", "MEDIUM"},
 		{"P3", "LOW"},
 		{"P4", "LOW"},
-		{"", "LOW"},
+		{"", "UNKNOWN"},
 	}
 	for _, c := range cases {
 		got := priorityToImpact(c.priority)

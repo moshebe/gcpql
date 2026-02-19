@@ -27,7 +27,7 @@ func FetchInstanceInfo(ctx context.Context, httpClient *http.Client, project, in
 	info, cfg, err := fetchInstanceInfoFromURL(ctx, httpClient, url)
 	if err != nil {
 		// Preserve project/instance context in the error message.
-		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("instance %s:%s — %w", project, instance, err)
+		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("instance %s/%s: %w", project, instance, err)
 	}
 	return info, cfg, nil
 }
