@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 )
 
 // CheckOptions configures the check command
@@ -236,9 +237,9 @@ func queryMetric(ctx context.Context, client *Client, query string, start, end t
 				for _, v := range values {
 					if valueArr, ok := v.([]interface{}); ok && len(valueArr) >= 2 {
 						if valStr, ok := valueArr[1].(string); ok {
-							var val float64
-							if _, err := fmt.Sscanf(valStr, "%f", &val); err != nil {
-								continue // Skip invalid values
+							val, err := strconv.ParseFloat(valStr, 64)
+							if err != nil {
+								continue
 							}
 							points = append(points, val)
 						}
@@ -321,17 +322,10 @@ func collectJobsSummary(ctx context.Context, client *Client, opts CheckOptions) 
 
 // collectTopQueries fetches expensive queries from INFORMATION_SCHEMA
 func collectTopQueries(ctx context.Context, client *Client, opts CheckOptions) ([]ExpensiveQuery, error) {
-	jobOpts := JobQueryOptions{
+	return client.QueryJobs(ctx, JobQueryOptions{
 		Since:   formatBQInterval(opts.Since),
 		Dataset: opts.Dataset,
 		Limit:   10,
 		OrderBy: "total_bytes_processed DESC",
-	}
-
-	queries, err := client.QueryJobs(ctx, jobOpts)
-	if err != nil {
-		return nil, fmt.Errorf("query jobs: %w", err)
-	}
-
-	return queries, nil
+	})
 }

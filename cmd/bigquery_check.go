@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/bigquery"
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
-	"github.com/gcp-metrics/gcp-metrics/pkg/timerange"
+	"github.com/moshebe/gcpql/pkg/bigquery"
+	"github.com/moshebe/gcpql/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 
@@ -23,9 +23,9 @@ var bqCheckCmd = &cobra.Command{
 	Long: `Fetch BigQuery slot utilization, cost indicators, and top expensive queries.
 
 Examples:
-  gcp-metrics bigquery check my-project
-  gcp-metrics bigquery check my-project --since 7d
-  gcp-metrics bigquery check my-project --dataset analytics --format table`,
+  gcpql bigquery check my-project
+  gcpql bigquery check my-project --since 7d
+  gcpql bigquery check my-project --dataset analytics --format table`,
 	Args: cobra.ExactArgs(1),
 	RunE: runBQCheck,
 }
@@ -51,13 +51,13 @@ func runBQCheck(cmd *cobra.Command, args []string) error {
 	// Create monitoring client
 	monClient, err := monitoring.NewClient(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create monitoring client: %w", err)
+		return fmt.Errorf("creating monitoring client: %w", err)
 	}
 
 	// Create BigQuery client
 	bqClient, err := bigquery.NewClient(ctx, project, monClient)
 	if err != nil {
-		return fmt.Errorf("failed to create bigquery client: %w", err)
+		return fmt.Errorf("creating bigquery client: %w", err)
 	}
 	defer bqClient.Close()
 
@@ -70,7 +70,7 @@ func runBQCheck(cmd *cobra.Command, args []string) error {
 
 	result, err := bigquery.CollectCheckMetrics(ctx, bqClient, opts)
 	if err != nil {
-		return fmt.Errorf("failed to collect metrics: %w", err)
+		return fmt.Errorf("collecting metrics: %w", err)
 	}
 
 	// Format output

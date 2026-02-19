@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -706,12 +707,9 @@ func diagConfig(r *CheckResult, add func(Finding)) {
 
 func sortFindings(fs []Finding) {
 	order := map[Severity]int{SeverityCritical: 0, SeverityWarning: 1, SeverityInfo: 2}
-	// stable sort preserves order within same severity
-	for i := 1; i < len(fs); i++ {
-		for j := i; j > 0 && order[fs[j].Severity] < order[fs[j-1].Severity]; j-- {
-			fs[j], fs[j-1] = fs[j-1], fs[j]
-		}
-	}
+	sort.SliceStable(fs, func(i, j int) bool {
+		return order[fs[i].Severity] < order[fs[j].Severity]
+	})
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────

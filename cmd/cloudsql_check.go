@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gcp-metrics/gcp-metrics/internal/config"
-	"github.com/gcp-metrics/gcp-metrics/pkg/cloudsql"
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
-	"github.com/gcp-metrics/gcp-metrics/pkg/timerange"
+	"github.com/moshebe/gcpql/internal/config"
+	"github.com/moshebe/gcpql/pkg/cloudsql"
+	"github.com/moshebe/gcpql/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 
@@ -30,9 +30,9 @@ Instance ID formats:
   - Database ID: my-project:us-central1:my-instance
 
 Examples:
-  gcp-metrics cloudsql check my-instance
-  gcp-metrics cloudsql check my-instance --since 7d
-  gcp-metrics cloudsql check my-instance --format table`,
+  gcpql cloudsql check my-instance
+  gcpql cloudsql check my-instance --since 7d
+  gcpql cloudsql check my-instance --format table`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCheck,
 }
@@ -71,7 +71,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	// Create monitoring client
 	monClient, err := monitoring.NewClient(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create monitoring client: %w", err)
+		return fmt.Errorf("creating monitoring client: %w", err)
 	}
 
 	// Create collector
@@ -80,7 +80,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	// Collect metrics
 	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration, checkQueryInsights)
 	if err != nil {
-		return fmt.Errorf("failed to collect metrics: %w", err)
+		return fmt.Errorf("collecting metrics: %w", err)
 	}
 
 	// Format output

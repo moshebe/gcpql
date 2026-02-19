@@ -1,4 +1,4 @@
-module github.com/gcp-metrics/gcp-metrics
+module github.com/moshebe/gcpql
 
 go 1.25.0
 

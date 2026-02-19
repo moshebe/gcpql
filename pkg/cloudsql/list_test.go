@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 )
 
 func TestParseTier(t *testing.T) {

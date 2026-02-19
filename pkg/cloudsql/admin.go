@@ -35,7 +35,7 @@ func FetchInstanceInfo(ctx context.Context, httpClient *http.Client, project, in
 func fetchInstanceInfoFromURL(ctx context.Context, httpClient *http.Client, url string) (InstanceInfo, InstanceConfig, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("failed to build admin API request: %w", err)
+		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("building admin API request: %w", err)
 	}
 
 	resp, err := httpClient.Do(req)
@@ -46,7 +46,7 @@ func fetchInstanceInfoFromURL(ctx context.Context, httpClient *http.Client, url 
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("failed to read admin API response: %w", err)
+		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("reading admin API response: %w", err)
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
@@ -84,7 +84,7 @@ func fetchInstanceInfoFromURL(ctx context.Context, httpClient *http.Client, url 
 		} `json:"settings"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("failed to parse admin API response: %w", err)
+		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("parsing admin API response: %w", err)
 	}
 
 	info := InstanceInfo{
@@ -135,14 +135,7 @@ func maxConnectionsFromTier(tier string) int {
 	parts := strings.Split(tier, "-")
 	if len(parts) == 4 && parts[0] == "db" && parts[1] == "custom" {
 		if vCPUs, err := strconv.Atoi(parts[2]); err == nil && vCPUs > 0 {
-			v := 25 * vCPUs
-			if v < 25 {
-				v = 25
-			}
-			if v > 1000 {
-				v = 1000
-			}
-			return v
+			return min(max(25*vCPUs, 25), 1000)
 		}
 	}
 	return 100

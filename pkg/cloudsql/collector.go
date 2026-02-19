@@ -3,10 +3,11 @@ package cloudsql
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 )
 
 // Collector fetches CloudSQL metrics
@@ -114,9 +115,9 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 						for _, v := range values {
 							if valueArr, ok := v.([]interface{}); ok && len(valueArr) >= 2 {
 								if valStr, ok := valueArr[1].(string); ok {
-									var val float64
-									fmt.Sscanf(valStr, "%f", &val)
-									points = append(points, val)
+									if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+										points = append(points, val)
+									}
 								}
 							}
 						}
@@ -124,9 +125,9 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 						if n := len(values); n > 0 {
 							if valueArr, ok := values[n-1].([]interface{}); ok && len(valueArr) >= 2 {
 								if valStr, ok := valueArr[1].(string); ok {
-									var val float64
-									fmt.Sscanf(valStr, "%f", &val)
-									currentSum += val
+									if val, err := strconv.ParseFloat(valStr, 64); err == nil {
+										currentSum += val
+									}
 								}
 							}
 						}

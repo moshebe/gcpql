@@ -1,16 +1,16 @@
 .PHONY: build test clean install
 
 build:
-	go build -o gcp-metrics
+	go build -o gcpql
 
 test:
 	go test ./... -v
 
 clean:
-	rm -f gcp-metrics
+	rm -f gcpql
 
 install: build
-	cp gcp-metrics ~/bin/gcp-metrics
+	cp gcpql ~/bin/gcpql
 
 lint:
 	go vet ./...

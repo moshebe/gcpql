@@ -1,5 +1,5 @@
 # Binaries
-gcp-metrics
+gcpql
 *.exe
 *.dll
 *.so

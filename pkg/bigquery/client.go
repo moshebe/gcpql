@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 	"google.golang.org/api/iterator"
 )
 

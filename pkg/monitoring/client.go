@@ -31,7 +31,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 			"https://www.googleapis.com/auth/sqlservice.admin",
 		))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create authenticated HTTP client: %w", err)
+		return nil, fmt.Errorf("creating authenticated HTTP client: %w", err)
 	}
 
 	return &Client{
@@ -84,13 +84,13 @@ func (c *Client) QueryTimeSeries(ctx context.Context, req QueryTimeSeriesRequest
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("marshaling request: %w", err)
 	}
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
@@ -104,7 +104,7 @@ func (c *Client) QueryTimeSeries(ctx context.Context, req QueryTimeSeriesRequest
 	// Read response body
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("reading response: %w", err)
 	}
 
 	// Check for error response
@@ -124,7 +124,7 @@ func (c *Client) QueryTimeSeries(ctx context.Context, req QueryTimeSeriesRequest
 	}
 
 	if err := json.Unmarshal(respBody, &promResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
 	if promResp.Status != "success" {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gcp-metrics/gcp-metrics/cmd"
+	"github.com/moshebe/gcpql/cmd"
 	"os"
 )
 

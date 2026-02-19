@@ -2,7 +2,7 @@
 
 ## Overview
 
-`gcp-metrics` is a Go CLI that queries GCP Cloud Monitoring via PromQL. It exposes service-specific subcommands that fetch, aggregate, and format metrics.
+`gcpql` is a Go CLI that queries GCP Cloud Monitoring via PromQL. It exposes service-specific subcommands that fetch, aggregate, and format metrics.
 
 ## Layout
 

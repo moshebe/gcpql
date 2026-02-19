@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gcp-metrics/gcp-metrics/internal/config"
-	"github.com/gcp-metrics/gcp-metrics/pkg/cloudsql"
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
-	"github.com/gcp-metrics/gcp-metrics/pkg/timerange"
+	"github.com/moshebe/gcpql/internal/config"
+	"github.com/moshebe/gcpql/pkg/cloudsql"
+	"github.com/moshebe/gcpql/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 
@@ -68,13 +68,13 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	monClient, err := monitoring.NewClient(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create monitoring client: %w", err)
+		return fmt.Errorf("creating monitoring client: %w", err)
 	}
 
 	collector := cloudsql.NewCollector(monClient)
 	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration, diagnoseQueryInsights)
 	if err != nil {
-		return fmt.Errorf("failed to collect metrics: %w", err)
+		return fmt.Errorf("collecting metrics: %w", err)
 	}
 
 	dr := cloudsql.Diagnose(result, sinceDuration)

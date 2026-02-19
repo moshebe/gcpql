@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 )
 
 // ListItem represents one CloudSQL instance in the list output.

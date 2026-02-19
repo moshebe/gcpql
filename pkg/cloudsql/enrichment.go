@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/monitoring"
 )
 
 // FetchRecommendations fetches Cloud Recommender suggestions for the given instance.
@@ -26,7 +26,7 @@ func FetchRecommendations(ctx context.Context, httpClient *http.Client, project,
 func fetchRecommendations(ctx context.Context, httpClient *http.Client, url string) (Recommendations, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return Recommendations{}, fmt.Errorf("failed to build recommender request: %w", err)
+		return Recommendations{}, fmt.Errorf("building recommender request: %w", err)
 	}
 
 	resp, err := httpClient.Do(req)
@@ -41,7 +41,7 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, url stri
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return Recommendations{}, fmt.Errorf("failed to read recommender response: %w", err)
+		return Recommendations{}, fmt.Errorf("reading recommender response: %w", err)
 	}
 
 	var parsed struct {
@@ -57,7 +57,7 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, url stri
 		} `json:"recommendations"`
 	}
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		return Recommendations{}, fmt.Errorf("failed to parse recommender response: %w", err)
+		return Recommendations{}, fmt.Errorf("parsing recommender response: %w", err)
 	}
 
 	items := make([]Recommendation, 0, len(parsed.Recommendations))

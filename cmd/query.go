@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gcp-metrics/gcp-metrics/internal/config"
-	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
-	"github.com/gcp-metrics/gcp-metrics/pkg/output"
-	"github.com/gcp-metrics/gcp-metrics/pkg/timerange"
+	"github.com/moshebe/gcpql/internal/config"
+	"github.com/moshebe/gcpql/pkg/monitoring"
+	"github.com/moshebe/gcpql/pkg/output"
+	"github.com/moshebe/gcpql/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 
@@ -73,7 +73,7 @@ func runQuery(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := output.FormatJSON(os.Stdout, result); err != nil {
-		return fmt.Errorf("failed to format output: %w", err)
+		return fmt.Errorf("formatting output: %w", err)
 	}
 
 	return nil
@@ -94,7 +94,7 @@ func formatAndPrintError(code, message, query string) error {
 		fmt.Fprintln(os.Stderr, "\nRun: gcloud auth application-default login")
 	} else if code == "CONFIG_ERROR" {
 		fmt.Fprintln(os.Stderr, "\nOptions:")
-		fmt.Fprintln(os.Stderr, "  gcp-metrics query \"...\" --project PROJECT_ID")
+		fmt.Fprintln(os.Stderr, "  gcpql query \"...\" --project PROJECT_ID")
 		fmt.Fprintln(os.Stderr, "  export GCP_PROJECT=PROJECT_ID")
 		fmt.Fprintln(os.Stderr, "  gcloud config set project PROJECT_ID")
 	}
