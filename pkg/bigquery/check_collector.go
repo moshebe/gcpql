@@ -6,6 +6,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
 )
 
 // CheckOptions configures the check command
@@ -89,22 +91,130 @@ func CollectCheckMetrics(ctx context.Context, client *Client, opts CheckOptions)
 	return result, nil
 }
 
+// formatDuration converts time.Duration to PromQL range format
+func formatDuration(d time.Duration) string {
+	hours := int(d.Hours())
+	if hours >= 24 {
+		return fmt.Sprintf("%dd", hours/24)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	minutes := int(d.Minutes())
+	if minutes > 0 {
+		return fmt.Sprintf("%dm", minutes)
+	}
+	return fmt.Sprintf("%ds", int(d.Seconds()))
+}
+
 // collectSlotMetrics fetches slot utilization from Cloud Monitoring
 func collectSlotMetrics(ctx context.Context, client *Client, opts CheckOptions) (SlotMetrics, error) {
-	// TODO: Query Cloud Monitoring API for:
-	// - bigquery.googleapis.com/slots/allocated_for_project
-	// - bigquery.googleapis.com/slots/total_allocated
-	// - bigquery.googleapis.com/job/num_in_flight
+	if client.monitoringClient == nil {
+		return SlotMetrics{}, fmt.Errorf("monitoring client not initialized")
+	}
 
-	// Placeholder implementation
+	end := time.Now()
+	start := end.Add(-opts.Since)
+	rangeSelector := formatDuration(opts.Since)
+
+	// Query: slots allocated for project
+	allocatedQuery := fmt.Sprintf(`{__name__="bigquery.googleapis.com/slots/allocated_for_project",project_id="%s"}[%s]`,
+		opts.Project, rangeSelector)
+
+	allocatedPoints, err := queryMetric(ctx, client, allocatedQuery, start, end)
+	if err != nil {
+		return SlotMetrics{}, fmt.Errorf("query allocated slots: %w", err)
+	}
+
+	// Query: current slot usage
+	currentQuery := fmt.Sprintf(`{__name__="bigquery.googleapis.com/slots/total_allocated",project_id="%s"}[%s]`,
+		opts.Project, rangeSelector)
+
+	currentPoints, err := queryMetric(ctx, client, currentQuery, start, end)
+	if err != nil {
+		return SlotMetrics{}, fmt.Errorf("query current slots: %w", err)
+	}
+
+	// Query: queries in flight
+	inflightQuery := fmt.Sprintf(`{__name__="bigquery.googleapis.com/job/num_in_flight",project_id="%s"}[%s]`,
+		opts.Project, rangeSelector)
+
+	inflightPoints, err := queryMetric(ctx, client, inflightQuery, start, end)
+	if err != nil {
+		// Non-fatal
+		inflightPoints = []float64{}
+	}
+
+	// Calculate stats
+	allocatedStats := CalculateStats(allocatedPoints)
+	currentStats := CalculateStats(currentPoints)
+
+	var allocated int64
+	if len(allocatedPoints) > 0 {
+		allocated = int64(allocatedStats.Current)
+	}
+
+	var current int64
+	if len(currentPoints) > 0 {
+		current = int64(currentStats.Current)
+	}
+
+	var utilization float64
+	if allocated > 0 && current <= allocated {
+		utilization = float64(current) / float64(allocated) * 100
+	}
+
+	var inFlight int
+	if len(inflightPoints) > 0 {
+		inFlightStats := CalculateStats(inflightPoints)
+		inFlight = int(inFlightStats.Current)
+	}
+
 	return SlotMetrics{
-		Allocated:       1000,
-		Current:         0,
-		Peak:            0,
-		Utilization:     0,
-		QueriesInFlight: 0,
-		QueriesQueued:   0,
-	}, fmt.Errorf("not implemented")
+		Allocated:       allocated,
+		Current:         current,
+		Peak:            int64(currentStats.Max),
+		Utilization:     utilization,
+		QueriesInFlight: inFlight,
+		QueriesQueued:   0, // TODO: Add queued queries metric if available
+	}, nil
+}
+
+// queryMetric is a helper that queries a metric and extracts float64 values
+func queryMetric(ctx context.Context, client *Client, query string, start, end time.Time) ([]float64, error) {
+	resp, err := client.monitoringClient.QueryTimeSeries(ctx, monitoring.QueryTimeSeriesRequest{
+		Project:   client.project,
+		Query:     query,
+		StartTime: start,
+		EndTime:   end,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract points from Prometheus response format
+	var points []float64
+	for _, ts := range resp.TimeSeries {
+		// Each ts is a map[string]interface{} with "values" key (range query)
+		if tsMap, ok := ts.(map[string]interface{}); ok {
+			// PromQL range query returns: "values": [[timestamp, "value_string"], ...]
+			if values, ok := tsMap["values"].([]interface{}); ok {
+				for _, v := range values {
+					if valueArr, ok := v.([]interface{}); ok && len(valueArr) >= 2 {
+						if valStr, ok := valueArr[1].(string); ok {
+							var val float64
+							if _, err := fmt.Sscanf(valStr, "%f", &val); err != nil {
+								continue // Skip invalid values
+							}
+							points = append(points, val)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return points, nil
 }
 
 // collectCostMetrics fetches cost indicators from Cloud Monitoring

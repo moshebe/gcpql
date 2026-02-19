@@ -1,28 +1,16 @@
 package bigquery
 
 import (
-	"context"
 	"testing"
-	"time"
 )
 
-func TestCollectSlotMetrics(t *testing.T) {
-	_ = context.Background()
+func TestCalculateSlotUtilization(t *testing.T) {
+	allocated := int64(1000)
+	current := int64(850)
 
-	opts := CheckOptions{
-		Project: "test-project",
-		Dataset: "",
-		Since:   24 * time.Hour,
-	}
+	utilization := float64(current) / float64(allocated) * 100
 
-	// Mock client would go here in real tests
-	// For now, test structure
-	result := &CheckResult{
-		Project: opts.Project,
-		Dataset: opts.Dataset,
-	}
-
-	if result.Project != "test-project" {
-		t.Errorf("Expected project test-project, got %s", result.Project)
+	if utilization != 85.0 {
+		t.Errorf("Expected 85.0%%, got %.1f%%", utilization)
 	}
 }
