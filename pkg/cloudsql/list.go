@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
