@@ -52,7 +52,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 
 	// Fetch instance metadata from Cloud SQL Admin API first.
 	// This gives us region, database version, and authoritative max_connections.
-	instanceInfo, err := FetchInstanceInfo(ctx, c.client.HTTPClient(), project, instance)
+	instanceInfo, instanceCfg, err := FetchInstanceInfo(ctx, c.client.HTTPClient(), project, instance)
 	if err != nil {
 		return nil, fmt.Errorf("cloud SQL admin API: %w", err)
 	}
@@ -70,6 +70,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 			MetricsUnavailable: []string{},
 		},
 	}
+	result.InstanceConfig = instanceCfg
 
 	// Fetch all metrics in parallel
 	metrics := AllMetrics()
