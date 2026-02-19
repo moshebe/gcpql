@@ -74,9 +74,11 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, url stri
 
 // FetchQueryInsights queries Cloud Monitoring for Query Insights execution time metrics.
 // Returns QueryInsights{Available: false} (no error) if QI is not enabled or query fails.
+// Data is grouped by (database, user, client_addr) — Cloud Monitoring aggregates at this level.
 func FetchQueryInsights(ctx context.Context, client *monitoring.Client, project, instance string, since time.Duration, topN int) (QueryInsights, error) {
 	now := time.Now()
-	query := fmt.Sprintf(`{__name__="cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time",database_id="%s:%s"}`, project, instance)
+	// Cloud Monitoring uses resource_id (not database_id) for Query Insights metrics.
+	query := fmt.Sprintf(`{__name__="cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time",resource_id="%s:%s"}`, project, instance)
 	req := monitoring.QueryTimeSeriesRequest{
 		Project:   project,
 		Query:     query,
@@ -107,7 +109,8 @@ func FetchQueryInsights(ctx context.Context, client *monitoring.Client, project,
 }
 
 // parseQueryInsightsResponse parses raw JSON ({"data":{"result":[...]}}) from the
-// Cloud Monitoring PromQL endpoint and returns top-N queries sorted by total time.
+// Cloud Monitoring PromQL endpoint and returns top-N rows sorted by total time.
+// Each series is a DELTA metric grouped by (database, user, client_addr).
 func parseQueryInsightsResponse(raw []byte, topN int) QueryInsights {
 	var envelope struct {
 		Data struct {
@@ -128,31 +131,24 @@ func parseQueryInsightsResponse(raw []byte, topN int) QueryInsights {
 
 	queries := make([]TopQuery, 0, len(results))
 	for _, ts := range results {
-		var totalUS float64
-		count := int64(0)
-		for _, v := range ts.Values {
-			if len(v) < 2 {
-				continue
-			}
-			valStr, ok := v[1].(string)
-			if !ok {
-				continue
-			}
-			val, err := strconv.ParseFloat(valStr, 64)
-			if err != nil {
-				continue
-			}
-			totalUS += val
-			count++
-		}
-		if count == 0 {
+		if len(ts.Values) < 2 {
 			continue
 		}
-		totalMS := totalUS / 1000.0
-		avgMS := totalMS / float64(count)
+		// Values are cumulative counters; delta = last - first gives window total.
+		firstUS := extractFloat(ts.Values[0])
+		lastUS := extractFloat(ts.Values[len(ts.Values)-1])
+		deltaUS := lastUS - firstUS
+		if deltaUS <= 0 {
+			continue
+		}
+		count := int64(len(ts.Values))
+		totalMS := deltaUS / 1000.0
+		// avg = execution time per sampling interval (usually 1 min)
+		avgMS := totalMS / float64(count-1)
 		queries = append(queries, TopQuery{
-			QueryHash:    ts.Metric["query_hash"],
-			QueryText:    ts.Metric["query_string"],
+			Database:     ts.Metric["database"],
+			User:         ts.Metric["user"],
+			ClientAddr:   ts.Metric["client_addr"],
 			SampleCount:  count,
 			TotalTimeMS:  totalMS,
 			AvgLatencyMS: avgMS,
@@ -168,6 +164,19 @@ func parseQueryInsightsResponse(raw []byte, topN int) QueryInsights {
 	}
 
 	return QueryInsights{Available: true, TopQueries: queries}
+}
+
+// extractFloat extracts a float64 from a Prometheus value pair [timestamp, "value_string"].
+func extractFloat(v []interface{}) float64 {
+	if len(v) < 2 {
+		return 0
+	}
+	valStr, ok := v[1].(string)
+	if !ok {
+		return 0
+	}
+	val, _ := strconv.ParseFloat(valStr, 64)
+	return val
 }
 
 // priorityToImpact maps GCP Recommender priority strings to impact levels.

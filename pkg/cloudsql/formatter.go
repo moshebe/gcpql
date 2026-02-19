@@ -533,19 +533,14 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
 		t.SetStyle(table.StyleLight)
-		t.SetTitle("QUERY INSIGHTS — Top Queries by Total Execution Time")
-		t.AppendHeader(table.Row{"#", "Query", "Samples", "Avg (ms)", "Total (ms)"})
+		t.SetTitle("QUERY INSIGHTS — Top Connections by Execution Time")
+		t.AppendHeader(table.Row{"#", "User", "Database", "Client", "Samples", "Avg (ms)", "Total (ms)"})
 		for i, q := range result.QueryInsights.TopQueries {
-			text := q.QueryText
-			if len(text) > 60 {
-				text = text[:57] + "..."
-			}
-			if text == "" {
-				text = q.QueryHash
-			}
 			t.AppendRow(table.Row{
 				i + 1,
-				text,
+				q.User,
+				q.Database,
+				q.ClientAddr,
 				q.SampleCount,
 				fmt.Sprintf("%.1f", q.AvgLatencyMS),
 				fmt.Sprintf("%.0f", q.TotalTimeMS),

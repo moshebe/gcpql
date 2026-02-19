@@ -202,13 +202,14 @@ type Recommendations struct {
 	Items     []Recommendation `json:"items,omitempty"`
 }
 
-// TopQuery is one row in the Query Insights top-queries list
+// TopQuery is one row in the Query Insights top-queries list.
+// Data comes from the aggregate execution_time metric, grouped by (database, user, client_addr).
 type TopQuery struct {
-	QueryText    string  `json:"query_text,omitempty"`
-	QueryHash    string  `json:"query_hash,omitempty"`
-	// SampleCount is the number of monitoring sample intervals that contained
-	// data for this query, not the number of SQL executions.
-	SampleCount     int64   `json:"sample_count"`
+	Database     string  `json:"database,omitempty"`
+	User         string  `json:"user,omitempty"`
+	ClientAddr   string  `json:"client_addr,omitempty"`
+	// SampleCount is the number of monitoring sample intervals with data.
+	SampleCount  int64   `json:"sample_count"`
 	AvgLatencyMS float64 `json:"avg_latency_ms"`
 	TotalTimeMS  float64 `json:"total_time_ms"`
 }

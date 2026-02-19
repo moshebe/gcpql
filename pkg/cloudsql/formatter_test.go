@@ -185,7 +185,7 @@ func TestFormatTable_QueryInsightsWithData(t *testing.T) {
 	result.QueryInsights = QueryInsights{
 		Available: true,
 		TopQueries: []TopQuery{
-			{QueryText: "SELECT * FROM orders WHERE id = 1", SampleCount: 5, AvgLatencyMS: 45.0, TotalTimeMS: 225.0},
+			{Database: "orders", User: "app", ClientAddr: "10.0.0.1", SampleCount: 5, AvgLatencyMS: 45.0, TotalTimeMS: 225.0},
 		},
 	}
 
@@ -197,7 +197,10 @@ func TestFormatTable_QueryInsightsWithData(t *testing.T) {
 	if !strings.Contains(out, "QUERY INSIGHTS") {
 		t.Error("missing QUERY INSIGHTS section")
 	}
-	if !strings.Contains(out, "SELECT * FROM orders") {
-		t.Error("missing query text")
+	if !strings.Contains(out, "orders") {
+		t.Error("missing database name")
+	}
+	if !strings.Contains(out, "app") {
+		t.Error("missing user")
 	}
 }
