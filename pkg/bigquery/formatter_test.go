@@ -91,7 +91,7 @@ func TestFormatCheckTable(t *testing.T) {
 
 	// Verify key sections present
 	sections := []string{
-		"BigQuery Health Check: test-project",
+		"Project: test-project",
 		"Dataset: test-dataset",
 		"SLOT UTILIZATION",
 		"COST INDICATORS",
@@ -208,12 +208,12 @@ func TestGetSlotStatus(t *testing.T) {
 		utilization float64
 		want        string
 	}{
-		{50.0, "[OK]"},
-		{69.9, "[OK]"},
-		{70.0, "[WARN]"},
-		{89.9, "[WARN]"},
-		{90.0, "[CRIT]"},
-		{100.0, "[CRIT]"},
+		{50.0, "🟢"},
+		{69.9, "🟢"},
+		{70.0, "🟡"},
+		{89.9, "🟡"},
+		{90.0, "🔴"},
+		{100.0, "🔴"},
 	}
 
 	for _, tt := range tests {
@@ -224,26 +224,42 @@ func TestGetSlotStatus(t *testing.T) {
 	}
 }
 
-func TestGetCostStatus(t *testing.T) {
+func TestGetStorageCostStatus(t *testing.T) {
 	tests := []struct {
-		storage   float64
-		query     float64
-		want      string
+		daily float64
+		want  string
 	}{
-		{50.0, 25.0, "[OK]"},
-		{99.9, 0.0, "[OK]"},
-		{100.0, 0.0, "[WARN]"},
-		{200.0, 200.0, "[WARN]"},
-		{499.9, 0.0, "[WARN]"},
-		{500.0, 0.0, "[CRIT]"},
-		{300.0, 300.0, "[CRIT]"},
+		{0.0, "🟢"},
+		{49.9, "🟢"},
+		{50.0, "🟡"},
+		{199.9, "🟡"},
+		{200.0, "🔴"},
 	}
 
 	for _, tt := range tests {
-		got := getCostStatus(tt.storage, tt.query)
+		got := getStorageCostStatus(tt.daily)
 		if got != tt.want {
-			t.Errorf("getCostStatus(%.1f, %.1f) = %s, want %s",
-				tt.storage, tt.query, got, tt.want)
+			t.Errorf("getStorageCostStatus(%.1f) = %s, want %s", tt.daily, got, tt.want)
+		}
+	}
+}
+
+func TestGetQueryCostStatus(t *testing.T) {
+	tests := []struct {
+		total float64
+		want  string
+	}{
+		{0.0, "🟢"},
+		{99.9, "🟢"},
+		{100.0, "🟡"},
+		{499.9, "🟡"},
+		{500.0, "🔴"},
+	}
+
+	for _, tt := range tests {
+		got := getQueryCostStatus(tt.total)
+		if got != tt.want {
+			t.Errorf("getQueryCostStatus(%.1f) = %s, want %s", tt.total, got, tt.want)
 		}
 	}
 }
