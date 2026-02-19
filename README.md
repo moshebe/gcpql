@@ -84,23 +84,39 @@ gcp-metrics cloudsql check my-instance --project my-project
 - Database ID: `my-project:us-central1:my-instance`
 
 **Metrics included:**
-- Resources: CPU, memory, disk utilization and I/O
-- Connections: Count, status breakdown, limits
-- Query Performance: Latency (P50/P99), I/O wait, lock time (requires Query Insights)
-- Database Health: Transaction IDs, deadlocks, vacuum activity
-- Replication: Lag in bytes and seconds
-- Network: Ingress/egress throughput
-- Checkpoints: Sync and write latencies
-- Temp Data: Bytes written, files created
+- **Derived Insights:** Cache hit ratio, connection utilization, disk/memory usage percentages
+- **Resources:** CPU, memory, disk utilization and I/O
+- **Cache Performance:** Query cache hit/miss ratios, block hit ratios
+- **Query Performance:** Latency (P50/P99), I/O wait, lock time (requires Query Insights)
+- **Connections:** Count, status breakdown, limits, utilization
+- **Database Health:** Transaction IDs, deadlocks, vacuum activity
+- **Throughput:** Queries per second, statements per second
+- **Replication:** Lag in bytes and seconds
+- **Network:** Ingress/egress throughput
+- **Checkpoints:** Sync and write latencies
+- **Temp Data:** Bytes written, files created
 
 **Output formats:**
 - `json` - Machine-readable, suitable for piping to `jq` or other tools
-- `table` - Human-readable tables with sections
+- `table` - Human-readable tables with sections and status indicators (🟢🟡🔴)
+
+**Status indicators** (table format only):
+- 🟢 Good: CPU < 70%, Memory < 80%, Disk < 80%, Cache Hit > 90%, Connections < 80%
+- 🟡 Warning: Moderate resource usage
+- 🔴 Critical: High resource usage requiring attention
 
 **Example: Pipe to jq**
 ```bash
 gcp-metrics cloudsql check my-instance | jq '.resources.cpu'
+gcp-metrics cloudsql check my-instance | jq '.derived_insights.cache_hit_ratio'
 ```
+
+**Note on metric availability:**
+Some metrics depend on specific configurations:
+- Query performance metrics require Query Insights enabled
+- Replication metrics only available for read replicas
+- PostgreSQL-specific metrics (vacuum, temp files) not available on MySQL
+- Recent metrics (< 2min) may be delayed due to GCP API propagation
 
 ## Output
 
