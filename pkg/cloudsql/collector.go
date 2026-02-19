@@ -45,7 +45,7 @@ func ParseInstanceID(instanceID, fallbackProject string) (project, instance stri
 }
 
 // CollectMetrics fetches all metrics for an instance
-func (c *Collector) CollectMetrics(ctx context.Context, project, instance string, since time.Duration) (*CheckResult, error) {
+func (c *Collector) CollectMetrics(ctx context.Context, project, instance string, since time.Duration, queryInsights bool) (*CheckResult, error) {
 	startTime := time.Now()
 	start := time.Now().Add(-since)
 	end := time.Now()
@@ -122,6 +122,21 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 		}(metric)
 	}
 
+	// Start enrichment goroutine in parallel with metric collection.
+	type enrichResult struct {
+		recs Recommendations
+		qi   QueryInsights
+	}
+	enrichCh := make(chan enrichResult, 1)
+	go func() {
+		recs, _ := FetchRecommendations(ctx, c.client.HTTPClient(), project, instanceInfo.Region)
+		var qi QueryInsights
+		if queryInsights {
+			qi, _ = FetchQueryInsights(ctx, c.client, project, instance, since, 10)
+		}
+		enrichCh <- enrichResult{recs: recs, qi: qi}
+	}()
+
 	// Collect results
 	metricData := make(map[string][]float64)
 	var unavailable []string
@@ -144,6 +159,11 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 
 	// Override max_connections with authoritative value from Admin API.
 	result.Connections.MaxConnections = instanceInfo.MaxConnections
+
+	// Wait for enrichment and attach results.
+	enrich := <-enrichCh
+	result.Recommendations = enrich.recs
+	result.QueryInsights = enrich.qi
 
 	result.Metadata.MetricsUnavailable = unavailable
 	result.Metadata.MetricsCollected = len(metrics) - len(unavailable)

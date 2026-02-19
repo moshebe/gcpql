@@ -76,7 +76,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	collector := cloudsql.NewCollector(monClient)
 
 	// Collect metrics
-	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration)
+	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration, false)
 	if err != nil {
 		return fmt.Errorf("failed to collect metrics: %w", err)
 	}
