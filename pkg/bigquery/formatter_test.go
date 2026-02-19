@@ -58,6 +58,14 @@ func TestFormatCheckTable(t *testing.T) {
 			BytesScannedTotal:  1024 * 1024 * 1024 * 10, // 10 GB
 			EstimatedCost:      5.0,
 		},
+		Jobs: JobsSummary{
+			TotalJobs:    100,
+			FailedJobs:   3,
+			CacheHits:    20,
+			CacheHitRate: 20.0,
+			TotalBytes:   1024 * 1024 * 1024 * 10,
+			TotalCost:    5.0,
+		},
 		TopQueries: []ExpensiveQuery{
 			{
 				Query:           "SELECT * FROM table WHERE condition = true",
@@ -87,6 +95,7 @@ func TestFormatCheckTable(t *testing.T) {
 		"Dataset: test-dataset",
 		"SLOT UTILIZATION",
 		"COST INDICATORS",
+		"QUERY SUMMARY",
 		"TOP EXPENSIVE QUERIES",
 		"Metrics:",
 	}
@@ -134,6 +143,43 @@ func TestFormatBytes(t *testing.T) {
 		got := formatBytes(tt.bytes)
 		if got != tt.want {
 			t.Errorf("formatBytes(%d) = %s, want %s", tt.bytes, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeQuery(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"SELECT *\nFROM foo", "SELECT * FROM foo"},
+		{"  SELECT\t*\t\nFROM\n  bar  ", "SELECT * FROM bar"},
+		{"single line", "single line"},
+	}
+	for _, tt := range tests {
+		got := normalizeQuery(tt.input)
+		if got != tt.want {
+			t.Errorf("normalizeQuery(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestFormatCost(t *testing.T) {
+	tests := []struct {
+		cost float64
+		want string
+	}{
+		{0, "$0.00"},
+		{0.000001, "$0.000001"},
+		{0.005, "$0.0050"},
+		{0.5, "$0.5000"},
+		{1.5, "$1.50"},
+		{100.0, "$100.00"},
+	}
+	for _, tt := range tests {
+		got := formatCost(tt.cost)
+		if got != tt.want {
+			t.Errorf("formatCost(%v) = %q, want %q", tt.cost, got, tt.want)
 		}
 	}
 }

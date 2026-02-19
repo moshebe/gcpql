@@ -9,8 +9,19 @@ type CheckResult struct {
 	Timestamp  time.Time        `json:"timestamp"`
 	Slots      SlotMetrics      `json:"slots"`
 	Cost       CostMetrics      `json:"cost"`
+	Jobs       JobsSummary      `json:"jobs"`
 	TopQueries []ExpensiveQuery `json:"top_queries,omitempty"`
 	Metadata   Metadata         `json:"metadata"`
+}
+
+// JobsSummary contains aggregate query statistics from INFORMATION_SCHEMA
+type JobsSummary struct {
+	TotalJobs    int     `json:"total_jobs"`
+	FailedJobs   int     `json:"failed_jobs"`
+	CacheHits    int     `json:"cache_hits"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
+	TotalBytes   int64   `json:"total_bytes"`
+	TotalCost    float64 `json:"total_cost"`
 }
 
 // Metadata contains diagnostic metadata about the check operation
@@ -47,6 +58,7 @@ type ExpensiveQuery struct {
 	SlotMS          int64     `json:"slot_ms,omitempty"`
 	BytesProcessed  int64     `json:"bytes_processed"`
 	DurationSeconds float64   `json:"duration_seconds"`
+	CacheHit        bool      `json:"cache_hit"`
 	StartTime       time.Time `json:"start_time,omitempty"`
 	EstimatedCost   float64   `json:"estimated_cost"`
 }

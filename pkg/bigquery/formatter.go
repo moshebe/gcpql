@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 )
 
 // FormatJSON outputs result as JSON
@@ -47,29 +48,44 @@ func FormatCheckTable(w io.Writer, result *CheckResult) error {
 	b.WriteString("\n")
 
 	// Cost Indicators Section
-	costStatus := getCostStatus(result.Cost.StorageCostDaily, result.Cost.EstimatedCost)
+	costStatus := getCostStatus(result.Cost.StorageCostDaily, result.Jobs.TotalCost)
 	b.WriteString(fmt.Sprintf("COST INDICATORS%50s%s\n", "", costStatus))
 	if result.Cost.StorageGB > 0 {
-		b.WriteString(fmt.Sprintf("  Storage           %.1f GB ($%.2f/day)\n",
-			result.Cost.StorageGB, result.Cost.StorageCostDaily))
-	}
-	if result.Cost.BytesScannedTotal > 0 {
-		b.WriteString(fmt.Sprintf("  Bytes Scanned     %s\n",
-			formatBytes(result.Cost.BytesScannedTotal)))
-		b.WriteString(fmt.Sprintf("  Est. Query Cost   $%.2f\n", result.Cost.EstimatedCost))
+		b.WriteString(fmt.Sprintf("  Storage           %.1f GB (%s/day)\n",
+			result.Cost.StorageGB, formatCost(result.Cost.StorageCostDaily)))
+	} else {
+		b.WriteString("  Storage           no data\n")
 	}
 	b.WriteString("\n")
+
+	// Query Summary Section (from INFORMATION_SCHEMA)
+	if result.Jobs.TotalJobs > 0 {
+		b.WriteString("QUERY SUMMARY\n")
+		b.WriteString(fmt.Sprintf("  Total             %d queries\n", result.Jobs.TotalJobs))
+		if result.Jobs.FailedJobs > 0 {
+			pct := float64(result.Jobs.FailedJobs) / float64(result.Jobs.TotalJobs) * 100
+			b.WriteString(fmt.Sprintf("  Failed            %d (%.1f%%)\n", result.Jobs.FailedJobs, pct))
+		}
+		b.WriteString(fmt.Sprintf("  Cache Hit Rate    %.1f%% (%d hits)\n", result.Jobs.CacheHitRate, result.Jobs.CacheHits))
+		b.WriteString(fmt.Sprintf("  Bytes Scanned     %s\n", formatBytes(result.Jobs.TotalBytes)))
+		b.WriteString(fmt.Sprintf("  Est. Query Cost   %s\n", formatCost(result.Jobs.TotalCost)))
+		b.WriteString("\n")
+	}
 
 	// Top Queries Section
 	if len(result.TopQueries) > 0 {
 		b.WriteString("TOP EXPENSIVE QUERIES (by bytes processed)\n")
 		for i, q := range result.TopQueries {
-			b.WriteString(fmt.Sprintf("  %d. %s   %s   $%.2f   %s\n",
-				i+1,
-				truncate(q.Query, 50),
+			cacheTag := ""
+			if q.CacheHit {
+				cacheTag = " [cached]"
+			}
+			b.WriteString(fmt.Sprintf("  %d. %-35s  %10s  %s%s\n",
+				i+1, q.UserEmail,
 				formatBytes(q.BytesProcessed),
-				q.EstimatedCost,
-				q.UserEmail))
+				formatCost(q.EstimatedCost),
+				cacheTag))
+			b.WriteString(fmt.Sprintf("     %s\n", truncate(normalizeQuery(q.Query), 100)))
 		}
 		b.WriteString("\n")
 	}
@@ -125,4 +141,23 @@ func truncate(s string, max int) string {
 		return s
 	}
 	return s[:max-3] + "..."
+}
+
+// normalizeQuery collapses SQL whitespace (newlines, tabs, extra spaces) into single spaces
+func normalizeQuery(s string) string {
+	return strings.Join(strings.FieldsFunc(s, unicode.IsSpace), " ")
+}
+
+// formatCost formats a dollar cost with precision scaled to magnitude
+func formatCost(cost float64) string {
+	switch {
+	case cost >= 1.0:
+		return fmt.Sprintf("$%.2f", cost)
+	case cost >= 0.001:
+		return fmt.Sprintf("$%.4f", cost)
+	case cost > 0:
+		return fmt.Sprintf("$%.6f", cost)
+	default:
+		return "$0.00"
+	}
 }

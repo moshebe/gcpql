@@ -72,6 +72,7 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 			total_slot_ms,
 			total_bytes_processed,
 			TIMESTAMP_DIFF(end_time, creation_time, SECOND) as duration_seconds,
+			cache_hit,
 			creation_time as start_time
 		FROM `+"`%s.region-%s`"+`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
 		WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL %s)
@@ -108,6 +109,7 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 			TotalSlotMS         int64
 			TotalBytesProcessed int64
 			DurationSeconds     float64
+			CacheHit            bool
 			StartTime           time.Time
 		}
 
@@ -135,10 +137,64 @@ func (c *Client) QueryJobs(ctx context.Context, opts JobQueryOptions) ([]Expensi
 			SlotMS:          row.TotalSlotMS,
 			BytesProcessed:  row.TotalBytesProcessed,
 			DurationSeconds: row.DurationSeconds,
+			CacheHit:        row.CacheHit,
 			StartTime:       row.StartTime,
 			EstimatedCost:   estimatedCost,
 		})
 	}
 
 	return results, nil
+}
+
+// QueryJobsSummary fetches aggregate job statistics from INFORMATION_SCHEMA
+func (c *Client) QueryJobsSummary(ctx context.Context, opts JobQueryOptions) (JobsSummary, error) {
+	if c.bqClient == nil {
+		return JobsSummary{}, fmt.Errorf("bigquery client not initialized")
+	}
+
+	query := fmt.Sprintf(`
+		SELECT
+			COUNT(*) AS total_jobs,
+			COUNTIF(error_result IS NOT NULL) AS failed_jobs,
+			COUNTIF(cache_hit) AS cache_hits,
+			COALESCE(SUM(total_bytes_processed), 0) AS total_bytes
+		FROM `+"`%s.region-%s`"+`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+		WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL %s)
+			AND job_type = 'QUERY'
+			AND state = 'DONE'`,
+		c.project, c.location, opts.Since)
+
+	if opts.Dataset != "" {
+		query += fmt.Sprintf(" AND referenced_tables LIKE '%%%s%%'", opts.Dataset)
+	}
+
+	q := c.bqClient.Query(query)
+	it, err := q.Read(ctx)
+	if err != nil {
+		return JobsSummary{}, fmt.Errorf("execute query: %w", err)
+	}
+
+	var row struct {
+		TotalJobs  int64
+		FailedJobs int64
+		CacheHits  int64
+		TotalBytes int64
+	}
+	if err := it.Next(&row); err != nil {
+		return JobsSummary{}, fmt.Errorf("read row: %w", err)
+	}
+
+	var cacheHitRate float64
+	if row.TotalJobs > 0 {
+		cacheHitRate = float64(row.CacheHits) / float64(row.TotalJobs) * 100
+	}
+
+	return JobsSummary{
+		TotalJobs:    int(row.TotalJobs),
+		FailedJobs:   int(row.FailedJobs),
+		CacheHits:    int(row.CacheHits),
+		CacheHitRate: cacheHitRate,
+		TotalBytes:   row.TotalBytes,
+		TotalCost:    float64(row.TotalBytes) / 1e12 * 5.0,
+	}, nil
 }

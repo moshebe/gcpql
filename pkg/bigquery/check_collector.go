@@ -84,6 +84,24 @@ func CollectCheckMetrics(ctx context.Context, client *Client, opts CheckOptions)
 		mu.Unlock()
 	}()
 
+	// Goroutine 4: Job summary from INFORMATION_SCHEMA (totals, errors, cache hits)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		summary, err := collectJobsSummary(ctx, client, opts)
+		if err != nil {
+			log.Printf("Warning: Failed to collect job summary: %v", err)
+			mu.Lock()
+			result.Metadata.MetricsNoData++
+			mu.Unlock()
+			return
+		}
+		mu.Lock()
+		result.Jobs = summary
+		result.Metadata.MetricsCollected += 4
+		mu.Unlock()
+	}()
+
 	wg.Wait()
 
 	result.Metadata.CollectionDurationMS = time.Since(startTime).Milliseconds()
@@ -290,6 +308,15 @@ func collectCostMetrics(ctx context.Context, client *Client, opts CheckOptions) 
 		BytesScannedTotal: bytesScannedTotal,
 		EstimatedCost:     estimatedCost,
 	}, nil
+}
+
+// collectJobsSummary fetches aggregate job statistics from INFORMATION_SCHEMA
+func collectJobsSummary(ctx context.Context, client *Client, opts CheckOptions) (JobsSummary, error) {
+	jobOpts := JobQueryOptions{
+		Since:   formatBQInterval(opts.Since),
+		Dataset: opts.Dataset,
+	}
+	return client.QueryJobsSummary(ctx, jobOpts)
 }
 
 // collectTopQueries fetches expensive queries from INFORMATION_SCHEMA
