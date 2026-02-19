@@ -131,6 +131,9 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 	result.Metadata.MetricsCollected = len(metrics) - len(unavailable)
 	result.Metadata.CollectionDurationMS = time.Since(startTime).Milliseconds()
 
+	// Compute derived metrics
+	computeDerivedMetrics(result, since)
+
 	return result, nil
 }
 
@@ -187,7 +190,11 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	// Connections
 	if points, ok := data["num_backends"]; ok && len(points) > 0 {
 		result.Connections.Count = CalculateStats(points, "")
-		result.Connections.MaxConnections = 100 // TODO: Get from config
+	}
+	if points, ok := data["max_connections"]; ok && len(points) > 0 {
+		result.Connections.MaxConnections = int(points[len(points)-1])
+	} else {
+		result.Connections.MaxConnections = 100 // Default fallback
 	}
 
 	// Query Performance
@@ -228,6 +235,12 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 			total += int64(p)
 		}
 		result.DBHealth.TransactionCount = total
+	}
+	if points, ok := data["deadlock_count"]; ok && len(points) > 0 {
+		result.DBHealth.DeadlockCount = int(points[len(points)-1])
+	}
+	if points, ok := data["oldest_transaction_age"]; ok && len(points) > 0 {
+		result.DBHealth.OldestTransactionAgeSec = int64(points[len(points)-1])
 	}
 	if points, ok := data["autovacuum_count"]; ok && len(points) > 0 {
 		result.DBHealth.AutovacuumCount = int(points[len(points)-1])
@@ -280,5 +293,36 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 			total += int64(p)
 		}
 		result.Network.EgressBytes = total
+	}
+
+	// Cache
+	if points, ok := data["shared_blocks_hit"]; ok && len(points) > 0 {
+		result.Cache.BlocksHit = CalculateStats(points, "blocks")
+	}
+	if points, ok := data["shared_blocks_read"]; ok && len(points) > 0 {
+		result.Cache.BlocksRead = CalculateStats(points, "blocks")
+	}
+	if points, ok := data["temp_blocks_read"]; ok && len(points) > 0 {
+		result.Cache.TempBlocksRead = CalculateStats(points, "blocks")
+	}
+	if points, ok := data["temp_blocks_written"]; ok && len(points) > 0 {
+		result.Cache.TempBlocksWritten = CalculateStats(points, "blocks")
+	}
+
+	// Throughput
+	if points, ok := data["tuples_returned"]; ok && len(points) > 0 {
+		result.Throughput.TuplesReturned = CalculateStats(points, "tuples/sec")
+	}
+	if points, ok := data["tuples_fetched"]; ok && len(points) > 0 {
+		result.Throughput.TuplesFetched = CalculateStats(points, "tuples/sec")
+	}
+	if points, ok := data["tuples_inserted"]; ok && len(points) > 0 {
+		result.Throughput.TuplesInserted = CalculateStats(points, "tuples/sec")
+	}
+	if points, ok := data["tuples_updated"]; ok && len(points) > 0 {
+		result.Throughput.TuplesUpdated = CalculateStats(points, "tuples/sec")
+	}
+	if points, ok := data["tuples_deleted"]; ok && len(points) > 0 {
+		result.Throughput.TuplesDeleted = CalculateStats(points, "tuples/sec")
 	}
 }
