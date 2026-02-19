@@ -41,7 +41,7 @@ func runList(cmd *cobra.Command, args []string) error {
 
 	project, err := config.ResolveProject(projectID)
 	if err != nil {
-		return fmt.Errorf("project required: use --project flag or set GCP_PROJECT env var")
+		return fmt.Errorf("resolve project: %w", err)
 	}
 
 	start, end, err := timerange.Parse(listSince, "")
