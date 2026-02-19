@@ -171,8 +171,10 @@ func fetchBulkUtilization(ctx context.Context, monClient *monitoring.Client, pro
 		if !ok {
 			continue
 		}
-		var v float64
-		fmt.Sscanf(valStr, "%f", &v)
+		v, err := strconv.ParseFloat(valStr, 64)
+		if err != nil {
+			continue
+		}
 		result[dbID] = v
 	}
 	return result, nil
