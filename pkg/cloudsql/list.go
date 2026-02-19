@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,18 +35,63 @@ type ListResult struct {
 }
 
 // parseTier extracts vCPU count and memory GB from a Cloud SQL tier string.
-// Handles "db-custom-{vcpu}-{memMB}" format. Returns (0, 0) for unknown tiers.
+// Handles:
+//   - db-custom-{vcpu}-{memMB}
+//   - db-n1-standard-{n}   (3.75 GB/vCPU)
+//   - db-n1-highmem-{n}    (6.5 GB/vCPU)
+//   - db-perf-optimized-N-{n} (8 GB/vCPU)
+//   - db-f1-micro, db-g1-small (shared-core)
+//
+// Returns (0, 0) for unrecognised tiers.
 func parseTier(tier string) (vcpu int, memGB float64) {
+	switch tier {
+	case "db-f1-micro":
+		return 1, 0.6
+	case "db-g1-small":
+		return 1, 1.7
+	}
+
 	parts := strings.Split(tier, "-")
-	if len(parts) != 4 || parts[0] != "db" || parts[1] != "custom" {
+	if len(parts) < 3 || parts[0] != "db" {
 		return 0, 0
 	}
-	v, err1 := strconv.Atoi(parts[2])
-	m, err2 := strconv.Atoi(parts[3])
-	if err1 != nil || err2 != nil {
-		return 0, 0
+
+	switch {
+	case len(parts) == 4 && parts[1] == "custom":
+		// db-custom-{vcpu}-{memMB}
+		v, err1 := strconv.Atoi(parts[2])
+		m, err2 := strconv.Atoi(parts[3])
+		if err1 != nil || err2 != nil {
+			return 0, 0
+		}
+		return v, float64(m) / 1024
+
+	case len(parts) == 4 && parts[1] == "n1" && parts[2] == "standard":
+		// db-n1-standard-{n}
+		v, err := strconv.Atoi(parts[3])
+		if err != nil {
+			return 0, 0
+		}
+		return v, float64(v) * 3.75
+
+	case len(parts) == 4 && parts[1] == "n1" && parts[2] == "highmem":
+		// db-n1-highmem-{n}
+		v, err := strconv.Atoi(parts[3])
+		if err != nil {
+			return 0, 0
+		}
+		return v, float64(v) * 6.5
+
+	case len(parts) == 5 && parts[1] == "perf" && parts[2] == "optimized":
+		// db-perf-optimized-N-{n}
+		v, err := strconv.Atoi(parts[4])
+		if err != nil {
+			return 0, 0
+		}
+		return v, float64(v) * 8
 	}
-	return v, float64(m) / 1024
+
+	return 0, 0
 }
 
 // instanceAdminRecord is a raw record from the Cloud SQL Admin API list response.
@@ -250,6 +296,20 @@ func listInstancesWithURL(ctx context.Context, httpClient *http.Client, adminURL
 		}
 		items = append(items, item)
 	}
+
+	// Sort by CPU% descending; nil (no data) sorts last.
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].CPUPct == nil && items[j].CPUPct == nil {
+			return false
+		}
+		if items[i].CPUPct == nil {
+			return false
+		}
+		if items[j].CPUPct == nil {
+			return true
+		}
+		return *items[i].CPUPct > *items[j].CPUPct
+	})
 
 	return &ListResult{
 		Project:   project,
