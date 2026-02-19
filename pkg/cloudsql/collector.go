@@ -74,7 +74,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 
 	for _, metric := range metrics {
 		go func(m MetricDefinition) {
-			query := fmt.Sprintf(`{__name__="%s",resource.database_id="%s"}`, m.MetricType, databaseID)
+			query := fmt.Sprintf(`{__name__="%s",database_id="%s"}`, m.MetricType, databaseID)
 
 			resp, err := c.client.QueryTimeSeries(ctx, monitoring.QueryTimeSeriesRequest{
 				Project:   project,
@@ -91,14 +91,18 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 			// Extract points from Prometheus response format
 			var points []float64
 			for _, ts := range resp.TimeSeries {
-				// Each ts is a map[string]interface{} with "value" key
+				// Each ts is a map[string]interface{} with "values" key (range query)
 				if tsMap, ok := ts.(map[string]interface{}); ok {
-					// PromQL instant query returns: "value": [timestamp, "value_string"]
-					if value, ok := tsMap["value"].([]interface{}); ok && len(value) >= 2 {
-						if valStr, ok := value[1].(string); ok {
-							var val float64
-							fmt.Sscanf(valStr, "%f", &val)
-							points = append(points, val)
+					// PromQL range query returns: "values": [[timestamp, "value_string"], ...]
+					if values, ok := tsMap["values"].([]interface{}); ok {
+						for _, v := range values {
+							if valueArr, ok := v.([]interface{}); ok && len(valueArr) >= 2 {
+								if valStr, ok := valueArr[1].(string); ok {
+									var val float64
+									fmt.Sscanf(valStr, "%f", &val)
+									points = append(points, val)
+								}
+							}
 						}
 					}
 				}
