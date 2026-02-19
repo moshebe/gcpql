@@ -18,6 +18,9 @@ func computeDerivedMetrics(result *CheckResult, timeWindow time.Duration) {
 	// Long transaction detection
 	detectLongTransactions(result)
 
+	// XID wraparound risk
+	computeXIDWraparound(result)
+
 	// Read/write ratio
 	computeReadWriteRatio(result)
 
@@ -60,6 +63,15 @@ func detectLongTransactions(result *CheckResult) {
 	age := result.DBHealth.OldestTransactionAgeSec
 	result.DerivedInsights.OldestTransactionAgeSec = age
 	result.DerivedInsights.LongTransactionDetected = age > longTransactionThresholdSec
+}
+
+// computeXIDWraparound copies the current transaction ID utilization percentage to
+// DerivedInsights. PostgreSQL transaction IDs are 32-bit; at ~100% utilization the
+// database freezes all writes to prevent wraparound. Sourced from GCP metric
+// transaction_id_utilization (0–1 range, stored as percent here).
+func computeXIDWraparound(result *CheckResult) {
+	pct := result.DBHealth.TransactionIDUtilization.Current * 100
+	result.DerivedInsights.XIDWraparoundRisk = pct
 }
 
 // computeReadWriteRatio calculates the ratio of read operations to write operations.

@@ -76,9 +76,10 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 	// Fetch all metrics in parallel
 	metrics := AllMetrics()
 	type metricResult struct {
-		name   string
-		points []float64
-		err    error
+		name       string
+		points     []float64
+		currentSum float64 // sum of last values across all time series
+		err        error
 	}
 
 	results := make(chan metricResult, len(metrics))
@@ -99,8 +100,12 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 				return
 			}
 
-			// Extract points from Prometheus response format
+			// Extract points from Prometheus response format.
+			// Many Cloud SQL metrics are per-Postgres-database (multiple time series per instance).
+			// We merge all series into one points slice for P50/P99 stats, and separately
+			// track the sum of each series' last value for the accurate "current" reading.
 			var points []float64
+			var currentSum float64
 			for _, ts := range resp.TimeSeries {
 				// Each ts is a map[string]interface{} with "values" key (range query)
 				if tsMap, ok := ts.(map[string]interface{}); ok {
@@ -115,11 +120,21 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 								}
 							}
 						}
+						// Sum the last value of this series for per-series current aggregation.
+						if n := len(values); n > 0 {
+							if valueArr, ok := values[n-1].([]interface{}); ok && len(valueArr) >= 2 {
+								if valStr, ok := valueArr[1].(string); ok {
+									var val float64
+									fmt.Sscanf(valStr, "%f", &val)
+									currentSum += val
+								}
+							}
+						}
 					}
 				}
 			}
 
-			results <- metricResult{name: m.Name, points: points}
+			results <- metricResult{name: m.Name, points: points, currentSum: currentSum}
 		}(metric)
 	}
 
@@ -141,6 +156,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 
 	// Collect results
 	metricData := make(map[string][]float64)
+	currentSums := make(map[string]float64)
 	var unavailable []string
 	noDataCount := 0
 
@@ -154,10 +170,11 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 			noDataCount++
 		}
 		metricData[res.name] = res.points
+		currentSums[res.name] = res.currentSum
 	}
 
 	// Populate result structure
-	c.populateResult(result, metricData)
+	c.populateResult(result, metricData, currentSums)
 
 	// Override max_connections with authoritative value from Admin API.
 	result.Connections.MaxConnections = instanceInfo.MaxConnections
@@ -219,11 +236,24 @@ func estimateMaxConnections(memoryGB float64) int {
 	return estimated
 }
 
+// statsFromData builds Stats from a metric's merged points and overrides Current with
+// the correct per-series sum so multi-database metrics (num_backends, cache blocks, etc.)
+// report the true instance-wide current value instead of the last per-database sample.
+func statsFromData(data map[string][]float64, sums map[string]float64, name, unit string) (Stats, bool) {
+	points, ok := data[name]
+	if !ok || len(points) == 0 {
+		return Stats{}, false
+	}
+	s := CalculateStats(points, unit)
+	s.Current = sums[name]
+	return s, true
+}
+
 // populateResult fills the CheckResult from collected metric data
-func (c *Collector) populateResult(result *CheckResult, data map[string][]float64) {
+func (c *Collector) populateResult(result *CheckResult, data map[string][]float64, sums map[string]float64) {
 	// CPU
-	if points, ok := data["cpu_utilization"]; ok && len(points) > 0 {
-		result.Resources.CPU.Utilization = CalculateStats(points, "percent")
+	if s, ok := statsFromData(data, sums, "cpu_utilization", "percent"); ok {
+		result.Resources.CPU.Utilization = s
 	}
 	if points, ok := data["cpu_reserved_cores"]; ok && len(points) > 0 {
 		result.Resources.CPU.ReservedCores = int(points[len(points)-1])
@@ -231,8 +261,8 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	}
 
 	// Memory
-	if points, ok := data["memory_utilization"]; ok && len(points) > 0 {
-		result.Resources.Memory.Utilization = CalculateStats(points, "percent")
+	if s, ok := statsFromData(data, sums, "memory_utilization", "percent"); ok {
+		result.Resources.Memory.Utilization = s
 	}
 	if points, ok := data["memory_quota"]; ok && len(points) > 0 {
 		result.Resources.Memory.QuotaBytes = int64(points[len(points)-1])
@@ -243,8 +273,8 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	}
 
 	// Disk
-	if points, ok := data["disk_utilization"]; ok && len(points) > 0 {
-		result.Resources.Disk.Utilization = CalculateStats(points, "percent")
+	if s, ok := statsFromData(data, sums, "disk_utilization", "percent"); ok {
+		result.Resources.Disk.Utilization = s
 	}
 	if points, ok := data["disk_quota"]; ok && len(points) > 0 {
 		result.Resources.Disk.QuotaBytes = int64(points[len(points)-1])
@@ -252,16 +282,16 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	if points, ok := data["disk_bytes_used"]; ok && len(points) > 0 {
 		result.Resources.Disk.BytesUsed = int64(points[len(points)-1])
 	}
-	if points, ok := data["disk_read_ops"]; ok && len(points) > 0 {
-		result.Resources.Disk.ReadOps = CalculateStats(points, "ops/sec")
+	if s, ok := statsFromData(data, sums, "disk_read_ops", "ops/sec"); ok {
+		result.Resources.Disk.ReadOps = s
 	}
-	if points, ok := data["disk_write_ops"]; ok && len(points) > 0 {
-		result.Resources.Disk.WriteOps = CalculateStats(points, "ops/sec")
+	if s, ok := statsFromData(data, sums, "disk_write_ops", "ops/sec"); ok {
+		result.Resources.Disk.WriteOps = s
 	}
 
-	// Connections
-	if points, ok := data["num_backends"]; ok && len(points) > 0 {
-		result.Connections.Count = CalculateStats(points, "")
+	// Connections — num_backends is per Postgres database; currentSum gives the instance total.
+	if s, ok := statsFromData(data, sums, "num_backends", ""); ok {
+		result.Connections.Count = s
 	}
 
 	// Max connections - fetch from metric or estimate from instance size
@@ -275,20 +305,20 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 
 	// Query Performance
 	hasQueryMetrics := false
-	if points, ok := data["query_latencies"]; ok && len(points) > 0 {
-		result.QueryPerf.LatencyUS = CalculateStats(points, "microseconds")
+	if s, ok := statsFromData(data, sums, "query_latencies", "microseconds"); ok {
+		result.QueryPerf.LatencyUS = s
 		hasQueryMetrics = true
 	}
-	if points, ok := data["query_execution_time"]; ok && len(points) > 0 {
-		result.QueryPerf.DatabaseLoadUS = CalculateStats(points, "microseconds")
+	if s, ok := statsFromData(data, sums, "query_execution_time", "microseconds"); ok {
+		result.QueryPerf.DatabaseLoadUS = s
 		hasQueryMetrics = true
 	}
-	if points, ok := data["query_io_time"]; ok && len(points) > 0 {
-		result.QueryPerf.IOTimeUS = CalculateStats(points, "microseconds")
+	if s, ok := statsFromData(data, sums, "query_io_time", "microseconds"); ok {
+		result.QueryPerf.IOTimeUS = s
 		hasQueryMetrics = true
 	}
-	if points, ok := data["query_lock_time"]; ok && len(points) > 0 {
-		result.QueryPerf.LockTimeUS = CalculateStats(points, "microseconds")
+	if s, ok := statsFromData(data, sums, "query_lock_time", "microseconds"); ok {
+		result.QueryPerf.LockTimeUS = s
 		hasQueryMetrics = true
 	}
 	if points, ok := data["query_row_count"]; ok && len(points) > 0 {
@@ -302,8 +332,8 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	result.QueryPerf.Available = hasQueryMetrics
 
 	// Database Health
-	if points, ok := data["transaction_id_utilization"]; ok && len(points) > 0 {
-		result.DBHealth.TransactionIDUtilization = CalculateStats(points, "percent")
+	if s, ok := statsFromData(data, sums, "transaction_id_utilization", "percent"); ok {
+		result.DBHealth.TransactionIDUtilization = s
 	}
 	if points, ok := data["transaction_count"]; ok && len(points) > 0 {
 		var total int64
@@ -312,11 +342,11 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 		}
 		result.DBHealth.TransactionCount = total
 	}
-	if points, ok := data["deadlock_count"]; ok && len(points) > 0 {
-		result.DBHealth.DeadlockCount = int(points[len(points)-1])
+	if _, ok := data["deadlock_count"]; ok {
+		result.DBHealth.DeadlockCount = int(sums["deadlock_count"])
 	}
-	if points, ok := data["oldest_transaction_age"]; ok && len(points) > 0 {
-		result.DBHealth.OldestTransactionAgeSec = int64(points[len(points)-1])
+	if _, ok := data["oldest_transaction_age"]; ok {
+		result.DBHealth.OldestTransactionAgeSec = int64(sums["oldest_transaction_age"])
 	}
 	if points, ok := data["autovacuum_count"]; ok && len(points) > 0 {
 		result.DBHealth.AutovacuumCount = int(points[len(points)-1])
@@ -342,19 +372,19 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	}
 
 	// Checkpoints
-	if points, ok := data["checkpoint_sync_latency"]; ok && len(points) > 0 {
-		result.Checkpoints.SyncLatencyMS = CalculateStats(points, "ms")
+	if s, ok := statsFromData(data, sums, "checkpoint_sync_latency", "ms"); ok {
+		result.Checkpoints.SyncLatencyMS = s
 	}
-	if points, ok := data["checkpoint_write_latency"]; ok && len(points) > 0 {
-		result.Checkpoints.WriteLatencyMS = CalculateStats(points, "ms")
+	if s, ok := statsFromData(data, sums, "checkpoint_write_latency", "ms"); ok {
+		result.Checkpoints.WriteLatencyMS = s
 	}
 
 	// Replication
-	if points, ok := data["replica_lag_bytes"]; ok && len(points) > 0 {
-		result.Replication.ReplicaLagBytes = CalculateStats(points, "bytes")
+	if s, ok := statsFromData(data, sums, "replica_lag_bytes", "bytes"); ok {
+		result.Replication.ReplicaLagBytes = s
 	}
-	if points, ok := data["replica_lag_seconds"]; ok && len(points) > 0 {
-		result.Replication.ReplicaLagSeconds = CalculateStats(points, "seconds")
+	if s, ok := statsFromData(data, sums, "replica_lag_seconds", "seconds"); ok {
+		result.Replication.ReplicaLagSeconds = s
 	}
 
 	// Network
@@ -375,33 +405,33 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	}
 
 	// Cache
-	if points, ok := data["shared_blocks_hit"]; ok && len(points) > 0 {
-		result.Cache.BlocksHit = CalculateStats(points, "blocks")
+	if s, ok := statsFromData(data, sums, "shared_blocks_hit", "blocks"); ok {
+		result.Cache.BlocksHit = s
 	}
-	if points, ok := data["shared_blocks_read"]; ok && len(points) > 0 {
-		result.Cache.BlocksRead = CalculateStats(points, "blocks")
+	if s, ok := statsFromData(data, sums, "shared_blocks_read", "blocks"); ok {
+		result.Cache.BlocksRead = s
 	}
-	if points, ok := data["temp_blocks_read"]; ok && len(points) > 0 {
-		result.Cache.TempBlocksRead = CalculateStats(points, "blocks")
+	if s, ok := statsFromData(data, sums, "temp_blocks_read", "blocks"); ok {
+		result.Cache.TempBlocksRead = s
 	}
-	if points, ok := data["temp_blocks_written"]; ok && len(points) > 0 {
-		result.Cache.TempBlocksWritten = CalculateStats(points, "blocks")
+	if s, ok := statsFromData(data, sums, "temp_blocks_written", "blocks"); ok {
+		result.Cache.TempBlocksWritten = s
 	}
 
 	// Throughput
-	if points, ok := data["tuples_returned"]; ok && len(points) > 0 {
-		result.Throughput.TuplesReturned = CalculateStats(points, "tuples/sec")
+	if s, ok := statsFromData(data, sums, "tuples_returned", "tuples/sec"); ok {
+		result.Throughput.TuplesReturned = s
 	}
-	if points, ok := data["tuples_fetched"]; ok && len(points) > 0 {
-		result.Throughput.TuplesFetched = CalculateStats(points, "tuples/sec")
+	if s, ok := statsFromData(data, sums, "tuples_fetched", "tuples/sec"); ok {
+		result.Throughput.TuplesFetched = s
 	}
-	if points, ok := data["tuples_inserted"]; ok && len(points) > 0 {
-		result.Throughput.TuplesInserted = CalculateStats(points, "tuples/sec")
+	if s, ok := statsFromData(data, sums, "tuples_inserted", "tuples/sec"); ok {
+		result.Throughput.TuplesInserted = s
 	}
-	if points, ok := data["tuples_updated"]; ok && len(points) > 0 {
-		result.Throughput.TuplesUpdated = CalculateStats(points, "tuples/sec")
+	if s, ok := statsFromData(data, sums, "tuples_updated", "tuples/sec"); ok {
+		result.Throughput.TuplesUpdated = s
 	}
-	if points, ok := data["tuples_deleted"]; ok && len(points) > 0 {
-		result.Throughput.TuplesDeleted = CalculateStats(points, "tuples/sec")
+	if s, ok := statsFromData(data, sums, "tuples_deleted", "tuples/sec"); ok {
+		result.Throughput.TuplesDeleted = s
 	}
 }

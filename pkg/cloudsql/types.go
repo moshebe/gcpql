@@ -99,6 +99,7 @@ type DerivedInsights struct {
 	ConnectionUtilizationPct   float64 `json:"connection_utilization_pct"`
 	LongTransactionDetected    bool    `json:"long_transaction_detected"`
 	OldestTransactionAgeSec    int64   `json:"oldest_transaction_age_sec"`
+	XIDWraparoundRisk          float64 `json:"xid_wraparound_risk_pct"` // transaction ID utilization %
 	ReadWriteRatio             float64 `json:"read_write_ratio"`
 	TempDataRateMBPerSec       float64 `json:"temp_data_rate_mb_per_sec"`
 	AutovacuumFrequencyPerHour float64 `json:"autovacuum_frequency_per_hour"`
