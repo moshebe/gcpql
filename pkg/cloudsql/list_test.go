@@ -299,6 +299,12 @@ func TestListInstances(t *testing.T) {
 	} else if *item.CPUPct != 42.0 {
 		t.Errorf("CPUPct = %f, want 42.0", *item.CPUPct)
 	}
+	if item.MemPct == nil {
+		t.Error("MemPct is nil, want value")
+	} else if *item.MemPct != 42.0 {
+		t.Errorf("MemPct = %f, want 42.0", *item.MemPct)
+	}
+
 	if item.State != "RUNNABLE" {
 		t.Errorf("State = %q, want RUNNABLE", item.State)
 	}
@@ -307,5 +313,47 @@ func TestListInstances(t *testing.T) {
 	}
 	if item.Region != "us-central1" {
 		t.Errorf("Region = %q, want us-central1", item.Region)
+	}
+}
+
+func TestListInstances_MonitoringError(t *testing.T) {
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+            "items": [
+                {
+                    "name": "prod-db",
+                    "state": "RUNNABLE",
+                    "databaseVersion": "POSTGRES_15",
+                    "region": "us-central1",
+                    "settings": {"tier": "db-custom-4-15360"}
+                }
+            ]
+        }`))
+	}))
+	defer adminSrv.Close()
+
+	// Monitoring returns 500 — should not cause ListInstances to fail
+	monSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer monSrv.Close()
+
+	monClient := monitoring.NewClientForTesting(monSrv.Client(), monSrv.URL)
+
+	result, err := listInstancesWithURL(context.Background(), adminSrv.Client(), adminSrv.URL,
+		monClient, "myproject", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("expected no error despite monitoring failure, got: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("got %d items, want 1", len(result.Items))
+	}
+	item := result.Items[0]
+	if item.CPUPct != nil {
+		t.Errorf("CPUPct should be nil when monitoring fails, got %f", *item.CPUPct)
+	}
+	if item.MemPct != nil {
+		t.Errorf("MemPct should be nil when monitoring fails, got %f", *item.MemPct)
 	}
 }
