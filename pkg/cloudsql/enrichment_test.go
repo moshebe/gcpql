@@ -124,8 +124,8 @@ func TestParseQueryInsightsResponse_SortsByTotalTime(t *testing.T) {
 	if qi.TopQueries[0].AvgLatencyMS != 55.0 {
 		t.Errorf("avg latency ms: got %.1f want 55.0", qi.TopQueries[0].AvgLatencyMS)
 	}
-	if qi.TopQueries[0].CallCount != 2 {
-		t.Errorf("call count: got %d want 2", qi.TopQueries[0].CallCount)
+	if qi.TopQueries[0].SampleCount != 2 {
+		t.Errorf("sample count: got %d want 2", qi.TopQueries[0].SampleCount)
 	}
 }
 

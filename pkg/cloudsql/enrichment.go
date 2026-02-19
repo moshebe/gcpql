@@ -79,12 +79,13 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, project,
 // FetchQueryInsights queries Cloud Monitoring for Query Insights execution time metrics.
 // Returns QueryInsights{Available: false} (no error) if QI is not enabled or query fails.
 func FetchQueryInsights(ctx context.Context, client *monitoring.Client, project, instance string, since time.Duration, topN int) (QueryInsights, error) {
+	now := time.Now()
 	query := fmt.Sprintf(`{__name__="cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time",database_id="%s:%s"}`, project, instance)
 	req := monitoring.QueryTimeSeriesRequest{
 		Project:   project,
 		Query:     query,
-		StartTime: time.Now().Add(-since),
-		EndTime:   time.Now(),
+		StartTime: now.Add(-since),
+		EndTime:   now,
 	}
 
 	resp, err := client.QueryTimeSeries(ctx, req)
@@ -92,7 +93,10 @@ func FetchQueryInsights(ctx context.Context, client *monitoring.Client, project,
 		return QueryInsights{Available: false}, nil
 	}
 
-	// Marshal TimeSeries back to JSON in the expected shape for parseQueryInsightsResponse.
+	// Re-marshal to a standard JSON envelope so parseQueryInsightsResponse
+	// can work with a consistent format. This works because the monitoring client
+	// already decoded the Prometheus response — metric labels are map[string]string
+	// and values are []interface{}{timestamp_float, value_string}.
 	wrapped := map[string]interface{}{
 		"data": map[string]interface{}{
 			"result": resp.TimeSeries,
@@ -153,7 +157,7 @@ func parseQueryInsightsResponse(raw []byte, topN int) QueryInsights {
 		queries = append(queries, TopQuery{
 			QueryHash:    ts.Metric["query_hash"],
 			QueryText:    ts.Metric["query_string"],
-			CallCount:    count,
+			SampleCount:  count,
 			TotalTimeMS:  totalMS,
 			AvgLatencyMS: avgMS,
 		})
