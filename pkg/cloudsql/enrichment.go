@@ -20,10 +20,10 @@ func FetchRecommendations(ctx context.Context, httpClient *http.Client, project,
 		"https://recommender.googleapis.com/v1/projects/%s/locations/%s/recommenders/google.cloudsql.instance.PerformanceRecommender/recommendations",
 		project, region,
 	)
-	return fetchRecommendations(ctx, httpClient, project, region, url)
+	return fetchRecommendations(ctx, httpClient, url)
 }
 
-func fetchRecommendations(ctx context.Context, httpClient *http.Client, project, region, url string) (Recommendations, error) {
+func fetchRecommendations(ctx context.Context, httpClient *http.Client, url string) (Recommendations, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return Recommendations{}, fmt.Errorf("failed to build recommender request: %w", err)

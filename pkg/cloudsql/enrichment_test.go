@@ -23,7 +23,7 @@ func TestFetchRecommendations_ReturnsItems(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	recs, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
+	recs, err := fetchRecommendations(context.Background(), srv.Client(), srv.URL)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestFetchRecommendations_Graceful403(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	recs, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
+	recs, err := fetchRecommendations(context.Background(), srv.Client(), srv.URL)
 	if err != nil {
 		t.Fatalf("should not error on 403, got: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestFetchRecommendations_Graceful404(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	recs, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
+	recs, err := fetchRecommendations(context.Background(), srv.Client(), srv.URL)
 	if err != nil {
 		t.Fatalf("should not error on 404, got: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestFetchRecommendations_GracefulOnServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	recs, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
+	recs, err := fetchRecommendations(context.Background(), srv.Client(), srv.URL)
 	if err != nil {
 		t.Fatalf("should not error on 500, got: %v", err)
 	}

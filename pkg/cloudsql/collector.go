@@ -46,9 +46,10 @@ func ParseInstanceID(instanceID, fallbackProject string) (project, instance stri
 
 // CollectMetrics fetches all metrics for an instance
 func (c *Collector) CollectMetrics(ctx context.Context, project, instance string, since time.Duration, queryInsights bool) (*CheckResult, error) {
-	startTime := time.Now()
-	start := time.Now().Add(-since)
-	end := time.Now()
+	now := time.Now()
+	startTime := now
+	start := now.Add(-since)
+	end := now
 
 	// Fetch instance metadata from Cloud SQL Admin API first.
 	// This gives us region, database version, and authoritative max_connections.

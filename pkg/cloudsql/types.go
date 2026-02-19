@@ -209,9 +209,8 @@ type TopQuery struct {
 	// SampleCount is the number of monitoring sample intervals that contained
 	// data for this query, not the number of SQL executions.
 	SampleCount     int64   `json:"sample_count"`
-	AvgLatencyMS    float64 `json:"avg_latency_ms"`
-	TotalTimeMS     float64 `json:"total_time_ms"`
-	AvgRowsReturned float64 `json:"avg_rows_returned"`
+	AvgLatencyMS float64 `json:"avg_latency_ms"`
+	TotalTimeMS  float64 `json:"total_time_ms"`
 }
 
 // QueryInsights holds top-N query data (only populated with --query-insights)
