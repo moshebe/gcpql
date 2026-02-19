@@ -219,12 +219,61 @@ func queryMetric(ctx context.Context, client *Client, query string, start, end t
 
 // collectCostMetrics fetches cost indicators from Cloud Monitoring
 func collectCostMetrics(ctx context.Context, client *Client, opts CheckOptions) (CostMetrics, error) {
-	// TODO: Query Cloud Monitoring API for:
-	// - bigquery.googleapis.com/storage/stored_bytes
-	// - bigquery.googleapis.com/query/scanned_bytes
+	if client.monitoringClient == nil {
+		return CostMetrics{}, fmt.Errorf("monitoring client not initialized")
+	}
 
-	// Placeholder implementation
-	return CostMetrics{}, fmt.Errorf("not implemented")
+	end := time.Now()
+	start := end.Add(-opts.Since)
+
+	// Query: storage bytes
+	storageQuery := fmt.Sprintf(`{__name__="bigquery.googleapis.com/storage/stored_bytes",project_id="%s"}[%s]`,
+		opts.Project, formatDuration(opts.Since))
+
+	storagePoints, err := queryMetric(ctx, client, storageQuery, start, end)
+	if err != nil {
+		return CostMetrics{}, fmt.Errorf("query storage: %w", err)
+	}
+
+	// Query: bytes scanned
+	scannedQuery := fmt.Sprintf(`{__name__="bigquery.googleapis.com/query/scanned_bytes",project_id="%s"}[%s]`,
+		opts.Project, formatDuration(opts.Since))
+
+	scannedPoints, err := queryMetric(ctx, client, scannedQuery, start, end)
+	if err != nil {
+		// Non-fatal - no queries may have run
+		scannedPoints = []float64{}
+	}
+
+	// Calculate storage size and cost
+	var storageGB float64
+	var storageCostDaily float64
+	if len(storagePoints) > 0 {
+		storageStats := CalculateStats(storagePoints)
+		storageGB = storageStats.Current / 1e9 // bytes to GB
+		// $0.02 per GB per month = $0.02/30 per day
+		storageCostDaily = storageGB * 0.02 / 30
+	}
+
+	// Calculate bytes scanned and estimated cost
+	var bytesScannedTotal int64
+	var estimatedCost float64
+	if len(scannedPoints) > 0 {
+		var sum float64
+		for _, v := range scannedPoints {
+			sum += v
+		}
+		bytesScannedTotal = int64(sum)
+		// $5 per TB = $5 / 1e12 per byte
+		estimatedCost = float64(bytesScannedTotal) / 1e12 * 5.0
+	}
+
+	return CostMetrics{
+		StorageGB:         storageGB,
+		StorageCostDaily:  storageCostDaily,
+		BytesScannedTotal: bytesScannedTotal,
+		EstimatedCost:     estimatedCost,
+	}, nil
 }
 
 // collectTopQueries fetches expensive queries from INFORMATION_SCHEMA
