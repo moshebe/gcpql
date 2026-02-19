@@ -43,13 +43,13 @@ func computeCacheHitRatio(result *CheckResult) {
 }
 
 // computeConnectionUtilization calculates the percentage of max connections in use.
-// Uses P99 of connection count to detect usage spikes. Returns 0 if MaxConnections
+// Uses Current connection count for real-time utilization. Returns 0 if MaxConnections
 // is not set. Result stored in DerivedInsights.ConnectionUtilizationPct.
 func computeConnectionUtilization(result *CheckResult) {
 	if result.Connections.MaxConnections > 0 {
-		// Use P99 to catch spikes
+		// Use Current for real-time utilization
 		result.DerivedInsights.ConnectionUtilizationPct =
-			(result.Connections.Count.P99 / float64(result.Connections.MaxConnections)) * 100
+			(result.Connections.Count.Current / float64(result.Connections.MaxConnections)) * 100
 	}
 }
 

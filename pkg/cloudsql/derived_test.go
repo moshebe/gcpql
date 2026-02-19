@@ -57,7 +57,7 @@ func TestComputeConnectionUtilization(t *testing.T) {
 	result := &CheckResult{
 		Connections: Connections{
 			MaxConnections: 100,
-			Count:          Stats{P99: 85.0},
+			Count:          Stats{Current: 85.0, P99: 80.0},
 		},
 	}
 
@@ -178,7 +178,7 @@ func TestComputeDerivedMetrics(t *testing.T) {
 		},
 		Connections: Connections{
 			MaxConnections: 100,
-			Count:          Stats{P99: 80.0},
+			Count:          Stats{Current: 80.0, P99: 75.0},
 		},
 		DBHealth: DBHealth{
 			OldestTransactionAgeSec: 400,
