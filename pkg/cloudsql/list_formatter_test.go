@@ -92,9 +92,15 @@ func TestFormatListTable(t *testing.T) {
 	if !strings.Contains(out, "42%") {
 		t.Error("output missing 42% CPU")
 	}
-	// old-db has nil CPU/mem — should show "-"
-	// Check that "-" appears (it will appear for the stopped instance's metrics)
-	if !strings.Contains(out, "-") {
-		t.Error("output missing - for nil metrics")
+	// old-db has nil CPU/mem — its table row should contain "-" placeholders
+	found := false
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "old-db") && strings.Contains(line, "-") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("old-db row should contain - for nil CPU/mem metrics")
 	}
 }
