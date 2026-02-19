@@ -62,7 +62,11 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		t := table.NewWriter()
 		t.SetOutputMirror(w)
 		t.SetTitle("INSTANCE CONFIG")
+		t.SetStyle(table.StyleLight)
 		t.AppendHeader(table.Row{"Property", "Value"})
+		t.SetColumnConfigs([]table.ColumnConfig{
+			{Number: 2, WidthMax: 70},
+		})
 
 		if result.InstanceConfig.State != "" {
 			t.AppendRow(table.Row{"State", result.InstanceConfig.State})
@@ -107,25 +111,29 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 			t.AppendRow(table.Row{"Labels", strings.Join(labelParts, ", ")})
 		}
 
-		if len(result.InstanceConfig.DatabaseFlags) > 0 {
-			flagParts := make([]string, 0, len(result.InstanceConfig.DatabaseFlags))
-			for _, f := range result.InstanceConfig.DatabaseFlags {
-				flagParts = append(flagParts, fmt.Sprintf("%s=%s", f.Name, f.Value))
-			}
-			t.AppendRow(table.Row{"DB Flags", strings.Join(flagParts, ", ")})
-		}
-
 		if result.InstanceConfig.QueryInsightsEnabled {
 			t.AppendRow(table.Row{"Query Insights", "enabled"})
 		}
 
 		t.Render()
+
+		// DB Flags rendered as a sorted list — too long for table cells
+		if len(result.InstanceConfig.DatabaseFlags) > 0 {
+			flags := make([]DBFlag, len(result.InstanceConfig.DatabaseFlags))
+			copy(flags, result.InstanceConfig.DatabaseFlags)
+			sort.Slice(flags, func(i, j int) bool { return flags[i].Name < flags[j].Name })
+			fmt.Fprintf(w, "\nDB Flags (%d):\n", len(flags))
+			for _, f := range flags {
+				fmt.Fprintf(w, "  %-44s %s\n", f.Name, f.Value)
+			}
+		}
 		fmt.Fprintln(w)
 	}
 
 	// Derived Insights table (most actionable metrics)
 	t := table.NewWriter()
 	t.SetOutputMirror(w)
+	t.SetStyle(table.StyleLight)
 	t.SetTitle("DERIVED INSIGHTS")
 	t.AppendHeader(table.Row{"Metric", "Value", "Status"})
 
@@ -177,6 +185,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	// Resources table
 	t = table.NewWriter()
 	t.SetOutputMirror(w)
+	t.SetStyle(table.StyleLight)
 	t.SetTitle("RESOURCES")
 	t.AppendHeader(table.Row{"Metric", "Current", "P50", "P99", "Max", "Unit"})
 
@@ -235,6 +244,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	// Connections table
 	t = table.NewWriter()
 	t.SetOutputMirror(w)
+	t.SetStyle(table.StyleLight)
 	t.SetTitle("CONNECTIONS")
 	t.AppendHeader(table.Row{"Metric", "Value", "Limit"})
 
@@ -261,6 +271,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	if result.QueryPerf.Available {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("QUERY PERFORMANCE")
 		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
 
@@ -299,6 +310,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	if result.Cache.HitRatio > 0 || result.Cache.BlocksHit.P50 > 0 || result.Cache.BlocksRead.P50 > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("CACHE PERFORMANCE")
 		t.AppendHeader(table.Row{"Metric", "Value", "Unit"})
 
@@ -336,6 +348,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		tp.TuplesUpdated.P50 > 0 || tp.TuplesDeleted.P50 > 0 || tp.ReadWriteRatio > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("THROUGHPUT")
 		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
 
@@ -400,6 +413,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	// DATABASE HEALTH table
 	t = table.NewWriter()
 	t.SetOutputMirror(w)
+	t.SetStyle(table.StyleLight)
 	t.SetTitle("DATABASE HEALTH")
 	t.AppendHeader(table.Row{"Metric", "Current", "P50", "P99", "Unit"})
 
@@ -445,6 +459,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		cp.WriteLatencyMS.P50 > 0 || cp.WriteLatencyMS.P99 > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("CHECKPOINTS")
 		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
 
@@ -474,6 +489,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		result.Replication.ReplicaLagSeconds.P50 > 0 || result.Replication.ReplicaLagSeconds.P99 > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("REPLICATION")
 		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
 
@@ -502,6 +518,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	if result.Recommendations.Available && len(result.Recommendations.Items) > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("RECOMMENDATIONS")
 		t.AppendHeader(table.Row{"Impact", "State", "Description"})
 		for _, r := range result.Recommendations.Items {
@@ -515,6 +532,7 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	if result.QueryInsights.Available && len(result.QueryInsights.TopQueries) > 0 {
 		t = table.NewWriter()
 		t.SetOutputMirror(w)
+		t.SetStyle(table.StyleLight)
 		t.SetTitle("QUERY INSIGHTS — Top Queries by Total Execution Time")
 		t.AppendHeader(table.Row{"#", "Query", "Samples", "Avg (ms)", "Total (ms)"})
 		for i, q := range result.QueryInsights.TopQueries {
