@@ -24,7 +24,12 @@ func FetchInstanceInfo(ctx context.Context, httpClient *http.Client, project, in
 		"https://sqladmin.googleapis.com/v1/projects/%s/instances/%s",
 		project, instance,
 	)
-	return fetchInstanceInfoFromURL(ctx, httpClient, url)
+	info, cfg, err := fetchInstanceInfoFromURL(ctx, httpClient, url)
+	if err != nil {
+		// Preserve project/instance context in the error message.
+		return InstanceInfo{}, InstanceConfig{}, fmt.Errorf("instance %s:%s — %w", project, instance, err)
+	}
+	return info, cfg, nil
 }
 
 func fetchInstanceInfoFromURL(ctx context.Context, httpClient *http.Client, url string) (InstanceInfo, InstanceConfig, error) {
