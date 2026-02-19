@@ -26,3 +26,9 @@ go.work
 
 # OS
 .DS_Store
+
+# Claude Code settings
+.claude/
+
+# Local scratch / tests
+tmp-tests/

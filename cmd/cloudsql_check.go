@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moshebeladev/gcp-metrics/internal/config"
-	"github.com/moshebeladev/gcp-metrics/pkg/cloudsql"
-	"github.com/moshebeladev/gcp-metrics/pkg/monitoring"
-	"github.com/moshebeladev/gcp-metrics/pkg/timerange"
+	"github.com/gcp-metrics/gcp-metrics/internal/config"
+	"github.com/gcp-metrics/gcp-metrics/pkg/cloudsql"
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
+	"github.com/gcp-metrics/gcp-metrics/pkg/timerange"
 	"github.com/spf13/cobra"
 )
 

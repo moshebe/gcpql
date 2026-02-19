@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moshebeladev/gcp-metrics/pkg/monitoring"
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
 )
 
 // Collector fetches CloudSQL metrics
