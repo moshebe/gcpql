@@ -28,6 +28,13 @@ func AllMetrics() []MetricDefinition {
 
 		// Connections
 		{Name: "num_backends", MetricType: "cloudsql.googleapis.com/database/postgresql/num_backends", Category: "connections"},
+		{Name: "max_connections", MetricType: "cloudsql.googleapis.com/database/postgresql/max_connections", Category: "connections"},
+
+		// Cache Performance
+		{Name: "shared_blocks_hit", MetricType: "cloudsql.googleapis.com/database/postgresql/shared_blocks_hit", Category: "cache"},
+		{Name: "shared_blocks_read", MetricType: "cloudsql.googleapis.com/database/postgresql/shared_blocks_read", Category: "cache"},
+		{Name: "temp_blocks_read", MetricType: "cloudsql.googleapis.com/database/postgresql/temp_blocks_read", Category: "cache"},
+		{Name: "temp_blocks_written", MetricType: "cloudsql.googleapis.com/database/postgresql/temp_blocks_written", Category: "cache"},
 
 		// Query Performance (requires Query Insights)
 		{Name: "query_latencies", MetricType: "cloudsql.googleapis.com/database/postgresql/insights/aggregate/latencies", Category: "query_performance"},
@@ -39,8 +46,18 @@ func AllMetrics() []MetricDefinition {
 		// Database Health
 		{Name: "transaction_id_utilization", MetricType: "cloudsql.googleapis.com/database/postgresql/transaction_id_utilization", Category: "database_health"},
 		{Name: "transaction_count", MetricType: "cloudsql.googleapis.com/database/postgresql/transaction_count", Category: "database_health"},
+		{Name: "deadlock_count", MetricType: "cloudsql.googleapis.com/database/postgresql/deadlock_count", Category: "database_health"},
+		{Name: "oldest_transaction_age", MetricType: "cloudsql.googleapis.com/database/postgresql/oldest_transaction_age", Category: "database_health"},
 		{Name: "autovacuum_count", MetricType: "cloudsql.googleapis.com/database/postgresql/autovacuum_count", Category: "database_health"},
+		{Name: "analyze_count", MetricType: "cloudsql.googleapis.com/database/postgresql/analyze_count", Category: "database_health"},
 		{Name: "vacuum_count", MetricType: "cloudsql.googleapis.com/database/postgresql/vacuum_count", Category: "database_health"},
+
+		// Tuple Throughput
+		{Name: "tuples_returned", MetricType: "cloudsql.googleapis.com/database/postgresql/tuples_returned", Category: "throughput"},
+		{Name: "tuples_fetched", MetricType: "cloudsql.googleapis.com/database/postgresql/tuples_fetched", Category: "throughput"},
+		{Name: "tuples_inserted", MetricType: "cloudsql.googleapis.com/database/postgresql/tuples_inserted", Category: "throughput"},
+		{Name: "tuples_updated", MetricType: "cloudsql.googleapis.com/database/postgresql/tuples_updated", Category: "throughput"},
+		{Name: "tuples_deleted", MetricType: "cloudsql.googleapis.com/database/postgresql/tuples_deleted", Category: "throughput"},
 
 		// Temp Data
 		{Name: "temp_bytes_written", MetricType: "cloudsql.googleapis.com/database/postgresql/temp_bytes_written", Category: "temp_data"},
