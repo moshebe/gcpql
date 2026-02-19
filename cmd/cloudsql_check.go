@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	checkSince  string
-	checkFormat string
+	checkSince         string
+	checkFormat        string
+	checkQueryInsights bool
 )
 
 var checkCmd = &cobra.Command{
@@ -40,6 +41,7 @@ func init() {
 	cloudsqlCmd.AddCommand(checkCmd)
 	checkCmd.Flags().StringVar(&checkSince, "since", "24h", "Time window for metrics (e.g., 1h, 24h, 7d)")
 	checkCmd.Flags().StringVar(&checkFormat, "format", "json", "Output format: json or table")
+	checkCmd.Flags().BoolVar(&checkQueryInsights, "query-insights", false, "Fetch top queries from Query Insights (opt-in, slower)")
 }
 
 func runCheck(cmd *cobra.Command, args []string) error {
@@ -76,7 +78,7 @@ func runCheck(cmd *cobra.Command, args []string) error {
 	collector := cloudsql.NewCollector(monClient)
 
 	// Collect metrics
-	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration, false)
+	result, err := collector.CollectMetrics(ctx, project, instance, sinceDuration, checkQueryInsights)
 	if err != nil {
 		return fmt.Errorf("failed to collect metrics: %w", err)
 	}
