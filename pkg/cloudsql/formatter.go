@@ -295,101 +295,107 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		fmt.Fprintln(w)
 	}
 
-	// Cache Performance table
-	t = table.NewWriter()
-	t.SetOutputMirror(w)
-	t.SetTitle("CACHE PERFORMANCE")
-	t.AppendHeader(table.Row{"Metric", "Value", "Unit"})
+	// Cache Performance table (skip if no data)
+	if result.Cache.HitRatio > 0 || result.Cache.BlocksHit.P50 > 0 || result.Cache.BlocksRead.P50 > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("CACHE PERFORMANCE")
+		t.AppendHeader(table.Row{"Metric", "Value", "Unit"})
 
-	if result.Cache.HitRatio > 0 {
-		t.AppendRow(table.Row{
-			"Buffer Cache Hit Ratio",
-			fmt.Sprintf("%.2f", result.Cache.HitRatio),
-			"%",
-		})
+		if result.Cache.HitRatio > 0 {
+			t.AppendRow(table.Row{
+				"Buffer Cache Hit Ratio",
+				fmt.Sprintf("%.2f", result.Cache.HitRatio),
+				"%",
+			})
+		}
+
+		if result.Cache.BlocksHit.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Cache Blocks Hit (P50)",
+				formatFloat(result.Cache.BlocksHit.P50),
+				"blocks/s",
+			})
+		}
+
+		if result.Cache.BlocksRead.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Disk Blocks Read (P50)",
+				formatFloat(result.Cache.BlocksRead.P50),
+				"blocks/s",
+			})
+		}
+
+		t.Render()
+		fmt.Fprintln(w)
 	}
 
-	if result.Cache.BlocksHit.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Cache Blocks Hit (P50)",
-			formatFloat(result.Cache.BlocksHit.P50),
-			"blocks/s",
-		})
+	// Throughput table (skip if no data)
+	tp := result.Throughput
+	if tp.TuplesReturned.P50 > 0 || tp.TuplesFetched.P50 > 0 || tp.TuplesInserted.P50 > 0 ||
+		tp.TuplesUpdated.P50 > 0 || tp.TuplesDeleted.P50 > 0 || tp.ReadWriteRatio > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("THROUGHPUT")
+		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
+
+		if tp.TuplesReturned.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Tuples Returned/sec",
+				formatFloat(tp.TuplesReturned.P50),
+				formatFloat(tp.TuplesReturned.P99),
+				"tuples/s",
+			})
+		}
+
+		if tp.TuplesFetched.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Tuples Fetched/sec",
+				formatFloat(tp.TuplesFetched.P50),
+				formatFloat(tp.TuplesFetched.P99),
+				"tuples/s",
+			})
+		}
+
+		if tp.TuplesInserted.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Tuples Inserted/sec",
+				formatFloat(tp.TuplesInserted.P50),
+				formatFloat(tp.TuplesInserted.P99),
+				"tuples/s",
+			})
+		}
+
+		if tp.TuplesUpdated.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Tuples Updated/sec",
+				formatFloat(tp.TuplesUpdated.P50),
+				formatFloat(tp.TuplesUpdated.P99),
+				"tuples/s",
+			})
+		}
+
+		if tp.TuplesDeleted.P50 > 0 {
+			t.AppendRow(table.Row{
+				"Tuples Deleted/sec",
+				formatFloat(tp.TuplesDeleted.P50),
+				formatFloat(tp.TuplesDeleted.P99),
+				"tuples/s",
+			})
+		}
+
+		if tp.ReadWriteRatio > 0 {
+			t.AppendRow(table.Row{
+				"Read/Write Ratio",
+				fmt.Sprintf("%.2f", tp.ReadWriteRatio),
+				"-",
+				"",
+			})
+		}
+
+		t.Render()
+		fmt.Fprintln(w)
 	}
-
-	if result.Cache.BlocksRead.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Disk Blocks Read (P50)",
-			formatFloat(result.Cache.BlocksRead.P50),
-			"blocks/s",
-		})
-	}
-
-	t.Render()
-	fmt.Fprintln(w)
-
-	// Throughput table
-	t = table.NewWriter()
-	t.SetOutputMirror(w)
-	t.SetTitle("THROUGHPUT")
-	t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
-
-	if result.Throughput.TuplesReturned.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Tuples Returned/sec",
-			formatFloat(result.Throughput.TuplesReturned.P50),
-			formatFloat(result.Throughput.TuplesReturned.P99),
-			"tuples/s",
-		})
-	}
-
-	if result.Throughput.TuplesFetched.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Tuples Fetched/sec",
-			formatFloat(result.Throughput.TuplesFetched.P50),
-			formatFloat(result.Throughput.TuplesFetched.P99),
-			"tuples/s",
-		})
-	}
-
-	if result.Throughput.TuplesInserted.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Tuples Inserted/sec",
-			formatFloat(result.Throughput.TuplesInserted.P50),
-			formatFloat(result.Throughput.TuplesInserted.P99),
-			"tuples/s",
-		})
-	}
-
-	if result.Throughput.TuplesUpdated.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Tuples Updated/sec",
-			formatFloat(result.Throughput.TuplesUpdated.P50),
-			formatFloat(result.Throughput.TuplesUpdated.P99),
-			"tuples/s",
-		})
-	}
-
-	if result.Throughput.TuplesDeleted.P50 > 0 {
-		t.AppendRow(table.Row{
-			"Tuples Deleted/sec",
-			formatFloat(result.Throughput.TuplesDeleted.P50),
-			formatFloat(result.Throughput.TuplesDeleted.P99),
-			"tuples/s",
-		})
-	}
-
-	if result.Throughput.ReadWriteRatio > 0 {
-		t.AppendRow(table.Row{
-			"Read/Write Ratio",
-			fmt.Sprintf("%.2f", result.Throughput.ReadWriteRatio),
-			"-",
-			"",
-		})
-	}
-
-	t.Render()
-	fmt.Fprintln(w)
 
 	// DATABASE HEALTH table
 	t = table.NewWriter()
@@ -433,31 +439,35 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	t.Render()
 	fmt.Fprintln(w)
 
-	// CHECKPOINTS table
-	t = table.NewWriter()
-	t.SetOutputMirror(w)
-	t.SetTitle("CHECKPOINTS")
-	t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
+	// CHECKPOINTS table (skip if no data)
+	cp := result.Checkpoints
+	if cp.SyncLatencyMS.P50 > 0 || cp.SyncLatencyMS.P99 > 0 ||
+		cp.WriteLatencyMS.P50 > 0 || cp.WriteLatencyMS.P99 > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("CHECKPOINTS")
+		t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
 
-	if result.Checkpoints.SyncLatencyMS.P50 > 0 || result.Checkpoints.SyncLatencyMS.P99 > 0 {
-		t.AppendRow(table.Row{
-			"Sync Latency",
-			formatFloat(result.Checkpoints.SyncLatencyMS.P50),
-			formatFloat(result.Checkpoints.SyncLatencyMS.P99),
-			"ms",
-		})
-	}
-	if result.Checkpoints.WriteLatencyMS.P50 > 0 || result.Checkpoints.WriteLatencyMS.P99 > 0 {
-		t.AppendRow(table.Row{
-			"Write Latency",
-			formatFloat(result.Checkpoints.WriteLatencyMS.P50),
-			formatFloat(result.Checkpoints.WriteLatencyMS.P99),
-			"ms",
-		})
-	}
+		if cp.SyncLatencyMS.P50 > 0 || cp.SyncLatencyMS.P99 > 0 {
+			t.AppendRow(table.Row{
+				"Sync Latency",
+				formatFloat(cp.SyncLatencyMS.P50),
+				formatFloat(cp.SyncLatencyMS.P99),
+				"ms",
+			})
+		}
+		if cp.WriteLatencyMS.P50 > 0 || cp.WriteLatencyMS.P99 > 0 {
+			t.AppendRow(table.Row{
+				"Write Latency",
+				formatFloat(cp.WriteLatencyMS.P50),
+				formatFloat(cp.WriteLatencyMS.P99),
+				"ms",
+			})
+		}
 
-	t.Render()
-	fmt.Fprintln(w)
+		t.Render()
+		fmt.Fprintln(w)
+	}
 
 	// REPLICATION table (skip if no data)
 	if result.Replication.ReplicaLagBytes.P50 > 0 || result.Replication.ReplicaLagBytes.P99 > 0 ||
