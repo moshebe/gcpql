@@ -40,6 +40,15 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}, nil
 }
 
+// NewClientForTesting creates a Client with a custom base URL and HTTP client.
+// For use in tests only.
+func NewClientForTesting(httpClient *http.Client, baseURL string) *Client {
+	return &Client{
+		httpClient: httpClient,
+		baseURL:    baseURL,
+	}
+}
+
 // HTTPClient returns the underlying authenticated HTTP client.
 // It can be reused to call other GCP APIs (e.g., Cloud SQL Admin API).
 func (c *Client) HTTPClient() *http.Client {
