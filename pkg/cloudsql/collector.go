@@ -129,6 +129,7 @@ func (c *Collector) CollectMetrics(ctx context.Context, project, instance string
 	}
 	enrichCh := make(chan enrichResult, 1)
 	go func() {
+		// Errors are not propagated — both functions return Available=false on failure.
 		recs, _ := FetchRecommendations(ctx, c.client.HTTPClient(), project, instanceInfo.Region)
 		var qi QueryInsights
 		if queryInsights {

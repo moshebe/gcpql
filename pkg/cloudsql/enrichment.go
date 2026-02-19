@@ -14,7 +14,7 @@ import (
 )
 
 // FetchRecommendations fetches Cloud Recommender suggestions for the given instance.
-// Returns Recommendations{Available: false} (no error) on 403/404.
+// Returns Recommendations{Available: false} (no error) on any non-200 response.
 func FetchRecommendations(ctx context.Context, httpClient *http.Client, project, region string) (Recommendations, error) {
 	url := fmt.Sprintf(
 		"https://recommender.googleapis.com/v1/projects/%s/locations/%s/recommenders/google.cloudsql.instance.PerformanceRecommender/recommendations",
@@ -35,17 +35,13 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, project,
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode != http.StatusOK {
 		return Recommendations{Available: false}, nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return Recommendations{}, fmt.Errorf("failed to read recommender response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return Recommendations{}, fmt.Errorf("recommender API error (status %d): %s", resp.StatusCode, string(body))
 	}
 
 	var parsed struct {

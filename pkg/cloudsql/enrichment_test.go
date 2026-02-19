@@ -74,15 +74,18 @@ func TestFetchRecommendations_Graceful404(t *testing.T) {
 	}
 }
 
-func TestFetchRecommendations_ErrorOnOtherStatus(t *testing.T) {
+func TestFetchRecommendations_GracefulOnServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
-	_, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
-	if err == nil {
-		t.Fatal("expected error on 500, got nil")
+	recs, err := fetchRecommendations(context.Background(), srv.Client(), "myproject", "us-central1", srv.URL)
+	if err != nil {
+		t.Fatalf("should not error on 500, got: %v", err)
+	}
+	if recs.Available {
+		t.Error("available: want false on 500")
 	}
 }
 
