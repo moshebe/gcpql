@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
+	"time"
+
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
 )
 
 // FetchRecommendations fetches Cloud Recommender suggestions for the given instance.
@@ -69,6 +74,100 @@ func fetchRecommendations(ctx context.Context, httpClient *http.Client, project,
 	}
 
 	return Recommendations{Available: true, Items: items}, nil
+}
+
+// FetchQueryInsights queries Cloud Monitoring for Query Insights execution time metrics.
+// Returns QueryInsights{Available: false} (no error) if QI is not enabled or query fails.
+func FetchQueryInsights(ctx context.Context, client *monitoring.Client, project, instance string, since time.Duration, topN int) (QueryInsights, error) {
+	query := fmt.Sprintf(`{__name__="cloudsql.googleapis.com/database/postgresql/insights/aggregate/execution_time",database_id="%s:%s"}`, project, instance)
+	req := monitoring.QueryTimeSeriesRequest{
+		Project:   project,
+		Query:     query,
+		StartTime: time.Now().Add(-since),
+		EndTime:   time.Now(),
+	}
+
+	resp, err := client.QueryTimeSeries(ctx, req)
+	if err != nil {
+		return QueryInsights{Available: false}, nil
+	}
+
+	// Marshal TimeSeries back to JSON in the expected shape for parseQueryInsightsResponse.
+	wrapped := map[string]interface{}{
+		"data": map[string]interface{}{
+			"result": resp.TimeSeries,
+		},
+	}
+	raw, err := json.Marshal(wrapped)
+	if err != nil {
+		return QueryInsights{Available: false}, nil
+	}
+
+	return parseQueryInsightsResponse(raw, topN), nil
+}
+
+// parseQueryInsightsResponse parses raw JSON ({"data":{"result":[...]}}) from the
+// Cloud Monitoring PromQL endpoint and returns top-N queries sorted by total time.
+func parseQueryInsightsResponse(raw []byte, topN int) QueryInsights {
+	var envelope struct {
+		Data struct {
+			Result []struct {
+				Metric map[string]string `json:"metric"`
+				Values [][]interface{}   `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return QueryInsights{Available: false}
+	}
+
+	results := envelope.Data.Result
+	if len(results) == 0 {
+		return QueryInsights{Available: false}
+	}
+
+	queries := make([]TopQuery, 0, len(results))
+	for _, ts := range results {
+		var totalUS float64
+		count := int64(0)
+		for _, v := range ts.Values {
+			if len(v) < 2 {
+				continue
+			}
+			valStr, ok := v[1].(string)
+			if !ok {
+				continue
+			}
+			val, err := strconv.ParseFloat(valStr, 64)
+			if err != nil {
+				continue
+			}
+			totalUS += val
+			count++
+		}
+		if count == 0 {
+			continue
+		}
+		totalMS := totalUS / 1000.0
+		avgMS := totalMS / float64(count)
+		queries = append(queries, TopQuery{
+			QueryHash:    ts.Metric["query_hash"],
+			QueryText:    ts.Metric["query_string"],
+			CallCount:    count,
+			TotalTimeMS:  totalMS,
+			AvgLatencyMS: avgMS,
+		})
+	}
+
+	sort.Slice(queries, func(i, j int) bool {
+		return queries[i].TotalTimeMS > queries[j].TotalTimeMS
+	})
+
+	if topN > 0 && len(queries) > topN {
+		queries = queries[:topN]
+	}
+
+	return QueryInsights{Available: true, TopQueries: queries}
 }
 
 // priorityToImpact maps GCP Recommender priority strings to impact levels.
