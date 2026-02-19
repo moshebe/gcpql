@@ -4,21 +4,24 @@ import "time"
 
 // CheckResult represents the complete health check output
 type CheckResult struct {
-	Instance     string       `json:"instance"`
-	Project      string       `json:"project"`
-	Region       string       `json:"region"`
-	Timestamp    time.Time    `json:"timestamp"`
-	TimeWindow   string       `json:"timeWindow"`
-	InstanceSize InstanceSize `json:"instance_size"`
-	Resources    Resources    `json:"resources"`
-	Connections  Connections  `json:"connections"`
-	QueryPerf    QueryPerf    `json:"query_performance"`
-	DBHealth     DBHealth     `json:"database_health"`
-	TempData     TempData     `json:"temp_data"`
-	Checkpoints  Checkpoints  `json:"checkpoints"`
-	Replication  Replication  `json:"replication"`
-	Network      Network      `json:"network"`
-	Metadata     Metadata     `json:"metadata"`
+	Instance        string            `json:"instance"`
+	Project         string            `json:"project"`
+	Region          string            `json:"region"`
+	Timestamp       time.Time         `json:"timestamp"`
+	TimeWindow      string            `json:"timeWindow"`
+	InstanceSize    InstanceSize      `json:"instance_size"`
+	Resources       Resources         `json:"resources"`
+	Connections     Connections       `json:"connections"`
+	QueryPerf       QueryPerf         `json:"query_performance"`
+	DBHealth        DBHealth          `json:"database_health"`
+	TempData        TempData          `json:"temp_data"`
+	Checkpoints     Checkpoints       `json:"checkpoints"`
+	Replication     Replication       `json:"replication"`
+	Network         Network           `json:"network"`
+	Cache           CacheMetrics      `json:"cache"`
+	Throughput      ThroughputMetrics `json:"throughput"`
+	DerivedInsights DerivedInsights   `json:"derived_insights"`
+	Metadata        Metadata          `json:"metadata"`
 }
 
 // InstanceSize represents vCPU and memory
@@ -65,6 +68,36 @@ type DiskMetrics struct {
 	BytesUsed   int64 `json:"bytes_used"`
 	ReadOps     Stats `json:"read_ops"`
 	WriteOps    Stats `json:"write_ops"`
+}
+
+// CacheMetrics represents cache performance
+type CacheMetrics struct {
+	HitRatio          float64 `json:"hit_ratio_pct"`
+	BlocksHit         Stats   `json:"blocks_hit"`
+	BlocksRead        Stats   `json:"blocks_read"`
+	TempBlocksRead    Stats   `json:"temp_blocks_read"`
+	TempBlocksWritten Stats   `json:"temp_blocks_written"`
+}
+
+// ThroughputMetrics represents tuple throughput rates
+type ThroughputMetrics struct {
+	TuplesReturned Stats   `json:"tuples_returned"`
+	TuplesFetched  Stats   `json:"tuples_fetched"`
+	TuplesInserted Stats   `json:"tuples_inserted"`
+	TuplesUpdated  Stats   `json:"tuples_updated"`
+	TuplesDeleted  Stats   `json:"tuples_deleted"`
+	ReadWriteRatio float64 `json:"read_write_ratio"`
+}
+
+// DerivedInsights represents computed diagnostic insights
+type DerivedInsights struct {
+	CacheHitRatio              float64 `json:"cache_hit_ratio_pct"`
+	ConnectionUtilizationPct   float64 `json:"connection_utilization_pct"`
+	LongTransactionDetected    bool    `json:"long_transaction_detected"`
+	OldestTransactionAgeSec    int64   `json:"oldest_transaction_age_sec"`
+	ReadWriteRatio             float64 `json:"read_write_ratio"`
+	TempDataRateMBPerSec       float64 `json:"temp_data_rate_mb_per_sec"`
+	AutovacuumFrequencyPerHour float64 `json:"autovacuum_frequency_per_hour"`
 }
 
 // Connections represents connection metrics
