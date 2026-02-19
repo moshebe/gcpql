@@ -107,6 +107,22 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
+// formatBQInterval converts time.Duration to BigQuery INTERVAL syntax (e.g. "7 DAY")
+func formatBQInterval(d time.Duration) string {
+	hours := int(d.Hours())
+	if hours >= 24 {
+		return fmt.Sprintf("%d DAY", hours/24)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%d HOUR", hours)
+	}
+	minutes := int(d.Minutes())
+	if minutes > 0 {
+		return fmt.Sprintf("%d MINUTE", minutes)
+	}
+	return fmt.Sprintf("%d SECOND", int(d.Seconds()))
+}
+
 // collectSlotMetrics fetches slot utilization from Cloud Monitoring
 func collectSlotMetrics(ctx context.Context, client *Client, opts CheckOptions) (SlotMetrics, error) {
 	if client.monitoringClient == nil {
@@ -279,7 +295,7 @@ func collectCostMetrics(ctx context.Context, client *Client, opts CheckOptions) 
 // collectTopQueries fetches expensive queries from INFORMATION_SCHEMA
 func collectTopQueries(ctx context.Context, client *Client, opts CheckOptions) ([]ExpensiveQuery, error) {
 	jobOpts := JobQueryOptions{
-		Since:   formatDuration(opts.Since),
+		Since:   formatBQInterval(opts.Since),
 		Dataset: opts.Dataset,
 		Limit:   10,
 		OrderBy: "total_bytes_processed DESC",
