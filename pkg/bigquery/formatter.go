@@ -87,22 +87,22 @@ func FormatCheckTable(w io.Writer, result *CheckResult) error {
 // getSlotStatus returns status indicator for slot utilization
 func getSlotStatus(utilization float64) string {
 	if utilization < 70 {
-		return "🟢"
+		return "[OK]"
 	} else if utilization < 90 {
-		return "🟡"
+		return "[WARN]"
 	}
-	return "🔴"
+	return "[CRIT]"
 }
 
 // getCostStatus returns status indicator for costs
 func getCostStatus(storageCostDaily, queryCost float64) string {
 	totalDaily := storageCostDaily + queryCost
 	if totalDaily < 100 {
-		return "🟢"
+		return "[OK]"
 	} else if totalDaily < 500 {
-		return "🟡"
+		return "[WARN]"
 	}
-	return "🔴"
+	return "[CRIT]"
 }
 
 // formatBytes converts bytes to human-readable format
