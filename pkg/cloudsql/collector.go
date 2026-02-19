@@ -154,22 +154,24 @@ func estimateMaxConnections(memoryGB float64) int {
 		return 100 // Fallback for unknown
 	}
 
-	// GCP formula: memory * 25, capped at 4000
+	// GCP formula: memory * 25
 	estimated := int(memoryGB * 25)
-	if estimated > 4000 {
-		estimated = 4000
-	}
 
-	// Additional tier-based caps
-	if memoryGB < 4 {
-		// Micro/small instances: cap at 250
+	// Apply GCP's tier-based caps
+	if memoryGB <= 3.75 {
+		// Micro/small instances
 		if estimated > 250 {
 			estimated = 250
 		}
-	} else if memoryGB <= 16 {
-		// Medium instances: cap at 600
+	} else if memoryGB <= 60 {
+		// Standard/medium instances (most common)
 		if estimated > 600 {
 			estimated = 600
+		}
+	} else {
+		// Large instances
+		if estimated > 4000 {
+			estimated = 4000
 		}
 	}
 
