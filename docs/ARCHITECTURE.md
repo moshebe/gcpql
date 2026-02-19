@@ -32,6 +32,15 @@ main.go
 5. `formatter.go` — `FormatJSON` / `FormatTable`. Table sections: INSTANCE CONFIG, DERIVED INSIGHTS, RESOURCES, CONNECTIONS, QUERY PERFORMANCE, CACHE PERFORMANCE, THROUGHPUT, DATABASE HEALTH, CHECKPOINTS, REPLICATION (skipped if empty), RECOMMENDATIONS (skipped if empty/unavailable), QUERY INSIGHTS (only with `--query-insights`).
 6. `types.go` — `CheckResult` and all nested structs.
 
+**BigQuery check** (`pkg/bigquery/`):
+1. `client.go` — wraps BigQuery SDK and Monitoring client, QueryJobs() for INFORMATION_SCHEMA
+2. `check_collector.go` — fetches slot metrics, cost indicators, top queries in parallel (3 goroutines with mutex)
+3. `aggregator.go` — `CalculateStats(points)` for percentile calculations (p50, p99)
+4. `formatter.go` — `FormatJSON` / `FormatCheckTable` with status indicators
+5. `types.go` — `CheckResult`, `SlotMetrics`, `CostMetrics`, `ExpensiveQuery`, Metadata
+
+**Data sources:** Cloud Monitoring metrics for real-time slots/costs, INFORMATION_SCHEMA.JOBS_BY_PROJECT for query history.
+
 **Time window:** `timerange.Parse` supports `m`, `h`, `d` suffixes. `cmd/cloudsql_check.go` uses it (not `time.ParseDuration`).
 
 **Metadata:** `metrics_collected`, `metrics_no_data` (no error but empty series), `metrics_unavailable` (API error), `collection_duration_ms`.

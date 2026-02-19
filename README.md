@@ -118,6 +118,51 @@ Some metrics depend on specific configurations:
 - PostgreSQL-specific metrics (vacuum, temp files) not available on MySQL
 - Recent metrics (< 2min) may be delayed due to GCP API propagation
 
+## BigQuery Commands
+
+### Check health metrics
+
+Get comprehensive BigQuery health metrics including slots, costs, and top queries:
+
+```bash
+# JSON output (default)
+gcp-metrics bigquery check my-project
+
+# Human-readable table output
+gcp-metrics bigquery check my-project --format table
+
+# Custom time window
+gcp-metrics bigquery check my-project --since 7d
+
+# Filter by dataset
+gcp-metrics bigquery check my-project --dataset analytics
+```
+
+**Metrics included:**
+- **Slot Utilization:** Allocated, current, peak, queries in flight
+- **Cost Indicators:** Storage costs, bytes scanned, estimated query costs
+- **Top Expensive Queries:** Most costly queries by bytes processed
+
+**Output formats:**
+- `json` - Machine-readable, suitable for piping to `jq`
+- `table` - Human-readable with status indicators ([OK] [WARN] [CRIT])
+
+**Status indicators** (table format only):
+- [OK] Good: Slots < 70%, Daily cost < $100
+- [WARN] Warning: Moderate usage
+- [CRIT] Critical: Slots ≥ 90%, Daily cost > $500
+
+**Example: Pipe to jq**
+```bash
+gcp-metrics bigquery check my-project | jq '.slots'
+gcp-metrics bigquery check my-project | jq '.top_queries[0]'
+```
+
+**Note on data sources:**
+- Real-time metrics from Cloud Monitoring API
+- Query history from INFORMATION_SCHEMA (requires BigQuery Data Viewer role)
+- Minimal query costs (<10MB typically)
+
 ## Output
 
 JSON format (pipe to `jq` for pretty printing):
