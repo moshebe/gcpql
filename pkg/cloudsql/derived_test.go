@@ -20,9 +20,9 @@ func TestComputeCacheHitRatio(t *testing.T) {
 		},
 		{
 			name:        "low cache hit ratio",
-			blocksHit:   3000,
-			blocksRead:  7000,
-			expectedPct: 30.0,
+			blocksHit:   70,
+			blocksRead:  30,
+			expectedPct: 70.0,
 		},
 		{
 			name:        "zero blocks",
@@ -57,13 +57,13 @@ func TestComputeConnectionUtilization(t *testing.T) {
 	result := &CheckResult{
 		Connections: Connections{
 			MaxConnections: 100,
-			Count:          Stats{P99: 75.0},
+			Count:          Stats{P99: 85.0},
 		},
 	}
 
 	computeConnectionUtilization(result)
 
-	expected := 75.0
+	expected := 85.0
 	if result.DerivedInsights.ConnectionUtilizationPct != expected {
 		t.Errorf("expected %v, got %v", expected, result.DerivedInsights.ConnectionUtilizationPct)
 	}
@@ -77,7 +77,7 @@ func TestDetectLongTransactions(t *testing.T) {
 	}{
 		{
 			name:             "short transaction",
-			transactionAge:   60,
+			transactionAge:   30,
 			expectedDetected: false,
 		},
 		{
@@ -120,16 +120,16 @@ func TestDetectLongTransactions(t *testing.T) {
 func TestComputeReadWriteRatio(t *testing.T) {
 	result := &CheckResult{
 		Throughput: ThroughputMetrics{
-			TuplesReturned: Stats{Current: 10000},
-			TuplesInserted: Stats{Current: 100},
-			TuplesUpdated:  Stats{Current: 50},
-			TuplesDeleted:  Stats{Current: 50},
+			TuplesReturned: Stats{Current: 1000},
+			TuplesInserted: Stats{Current: 50},
+			TuplesUpdated:  Stats{Current: 30},
+			TuplesDeleted:  Stats{Current: 20},
 		},
 	}
 
 	computeReadWriteRatio(result)
 
-	expected := 50.0 // 10000 / (100 + 50 + 50)
+	expected := 10.0 // 1000 / (50 + 30 + 20)
 	if result.Throughput.ReadWriteRatio != expected {
 		t.Errorf("Throughput.ReadWriteRatio: expected %v, got %v", expected, result.Throughput.ReadWriteRatio)
 	}
@@ -157,14 +157,14 @@ func TestComputeTempDataRate(t *testing.T) {
 func TestComputeAutovacuumFrequency(t *testing.T) {
 	result := &CheckResult{
 		DBHealth: DBHealth{
-			AutovacuumCount: 6,
+			AutovacuumCount: 12,
 		},
 	}
-	timeWindow := 2 * time.Hour
+	timeWindow := 6 * time.Hour
 
 	computeAutovacuumFrequency(result, timeWindow)
 
-	expected := 3.0 // 6 runs / 2 hours = 3 per hour
+	expected := 2.0 // 12 runs / 6 hours = 2 per hour
 	if result.DerivedInsights.AutovacuumFrequencyPerHour != expected {
 		t.Errorf("expected %v, got %v", expected, result.DerivedInsights.AutovacuumFrequencyPerHour)
 	}
