@@ -118,12 +118,17 @@ func fetchAllInstancesFromURL(ctx context.Context, httpClient *http.Client, url 
 
 // normalizeDBID converts a 3-part monitoring label "project:region:instance"
 // to the 2-part format "project:instance". 2-part IDs are returned unchanged.
+// Any other format returns empty string; callers should skip empty results.
 func normalizeDBID(id string) string {
 	parts := strings.Split(id, ":")
-	if len(parts) == 3 {
-		return parts[0] + ":" + parts[2]
+	switch len(parts) {
+	case 2:
+		return id // already "project:instance"
+	case 3:
+		return parts[0] + ":" + parts[2] // "project:region:instance" → "project:instance"
+	default:
+		return "" // unrecognized format; caller skips empty key
 	}
-	return id
 }
 
 // fetchBulkUtilization queries a single metric type for all instances in a project.
@@ -157,6 +162,9 @@ func fetchBulkUtilization(ctx context.Context, monClient *monitoring.Client, pro
 			continue
 		}
 		dbID = normalizeDBID(dbID)
+		if dbID == "" {
+			continue
+		}
 
 		values, ok := tsMap["values"].([]interface{})
 		if !ok || len(values) == 0 {

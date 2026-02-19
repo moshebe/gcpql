@@ -131,7 +131,8 @@ func TestNormalizeDBID(t *testing.T) {
 	}{
 		{"myproject:us-central1:myinstance", "myproject:myinstance"},
 		{"myproject:myinstance", "myproject:myinstance"},
-		{"single", "single"},
+		{"single", ""},  // 1-part: unrecognized, returns empty
+		{"a:b:c:d", ""},  // 4-part: unrecognized, returns empty
 	}
 	for _, tc := range tests {
 		got := normalizeDBID(tc.input)
@@ -186,5 +187,53 @@ func TestFetchBulkUtilization(t *testing.T) {
 		t.Error("missing myproject:staging-db")
 	} else if v != 0.08 {
 		t.Errorf("myproject:staging-db = %f, want 0.08", v)
+	}
+}
+
+func TestFetchBulkUtilization_EmptyResult(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[]}}`))
+	}))
+	defer srv.Close()
+
+	monClient := monitoring.NewClientForTesting(srv.Client(), srv.URL)
+	result, err := fetchBulkUtilization(context.Background(), monClient, "myproject", 5*time.Minute,
+		"cloudsql.googleapis.com/database/cpu/utilization")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("got %d entries, want 0", len(result))
+	}
+}
+
+func TestFetchBulkUtilization_EmptyValues(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"status": "success",
+			"data": {
+				"resultType": "matrix",
+				"result": [
+					{
+						"metric": {"database_id": "myproject:us-central1:prod-db"},
+						"values": []
+					}
+				]
+			}
+		}`))
+	}))
+	defer srv.Close()
+
+	monClient := monitoring.NewClientForTesting(srv.Client(), srv.URL)
+	result, err := fetchBulkUtilization(context.Background(), monClient, "myproject", 5*time.Minute,
+		"cloudsql.googleapis.com/database/cpu/utilization")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Series with empty values should be skipped
+	if _, ok := result["myproject:prod-db"]; ok {
+		t.Error("entry with empty values should not appear in result")
 	}
 }
