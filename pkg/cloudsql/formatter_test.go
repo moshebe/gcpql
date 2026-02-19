@@ -3,6 +3,7 @@ package cloudsql
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -113,5 +114,90 @@ func TestFormatTable(t *testing.T) {
 
 	if !bytes.Contains([]byte(output), []byte("4 vCPU")) {
 		t.Error("Table output missing instance size")
+	}
+}
+
+func TestFormatTable_InstanceConfig(t *testing.T) {
+	result := &CheckResult{}
+	result.InstanceConfig = InstanceConfig{
+		State:            "RUNNABLE",
+		AvailabilityType: "REGIONAL",
+		BackupEnabled:    true,
+		BackupStartTime:  "03:00",
+		PITREnabled:      true,
+		StorageType:      "PD_SSD",
+		Labels:           map[string]string{"env": "prod"},
+	}
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "INSTANCE CONFIG") {
+		t.Error("missing INSTANCE CONFIG section")
+	}
+	if !strings.Contains(out, "REGIONAL") {
+		t.Error("missing REGIONAL in output")
+	}
+	if !strings.Contains(out, "env=prod") {
+		t.Error("missing label in output")
+	}
+}
+
+func TestFormatTable_Recommendations(t *testing.T) {
+	result := &CheckResult{}
+	result.Recommendations = Recommendations{
+		Available: true,
+		Items: []Recommendation{
+			{Description: "Reduce RAM", Impact: "HIGH", State: "ACTIVE"},
+		},
+	}
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "RECOMMENDATIONS") {
+		t.Error("missing RECOMMENDATIONS section")
+	}
+	if !strings.Contains(out, "Reduce RAM") {
+		t.Error("missing recommendation text")
+	}
+}
+
+func TestFormatTable_QueryInsightsOmittedWhenEmpty(t *testing.T) {
+	result := &CheckResult{}
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "QUERY INSIGHTS") {
+		t.Error("QUERY INSIGHTS section should be omitted when not available")
+	}
+}
+
+func TestFormatTable_QueryInsightsWithData(t *testing.T) {
+	result := &CheckResult{}
+	result.QueryInsights = QueryInsights{
+		Available: true,
+		TopQueries: []TopQuery{
+			{QueryText: "SELECT * FROM orders WHERE id = 1", SampleCount: 5, AvgLatencyMS: 45.0, TotalTimeMS: 225.0},
+		},
+	}
+
+	var buf strings.Builder
+	if err := FormatTable(&buf, result); err != nil {
+		t.Fatalf("FormatTable: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "QUERY INSIGHTS") {
+		t.Error("missing QUERY INSIGHTS section")
+	}
+	if !strings.Contains(out, "SELECT * FROM orders") {
+		t.Error("missing query text")
 	}
 }

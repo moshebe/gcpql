@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 )
@@ -54,6 +56,72 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	fmt.Fprintf(w, "Region: %s\n", result.Region)
 	fmt.Fprintf(w, "Time Window: %s\n", result.TimeWindow)
 	fmt.Fprintf(w, "Instance Size: %d vCPU, %.0f GB RAM\n\n", result.InstanceSize.VCPU, result.InstanceSize.MemoryGB)
+
+	// Instance Config table
+	if result.InstanceConfig.State != "" || result.InstanceConfig.AvailabilityType != "" {
+		t := table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("INSTANCE CONFIG")
+		t.AppendHeader(table.Row{"Property", "Value"})
+
+		if result.InstanceConfig.State != "" {
+			t.AppendRow(table.Row{"State", result.InstanceConfig.State})
+		}
+		if result.InstanceConfig.AvailabilityType != "" {
+			t.AppendRow(table.Row{"Availability", result.InstanceConfig.AvailabilityType})
+		}
+		if result.InstanceConfig.ConnectionName != "" {
+			t.AppendRow(table.Row{"Connection Name", result.InstanceConfig.ConnectionName})
+		}
+
+		backupVal := "disabled"
+		if result.InstanceConfig.BackupEnabled {
+			pitr := "PITR: off"
+			if result.InstanceConfig.PITREnabled {
+				pitr = "PITR: on"
+			}
+			backupVal = fmt.Sprintf("enabled (%s UTC, %s)", result.InstanceConfig.BackupStartTime, pitr)
+		}
+		t.AppendRow(table.Row{"Backup", backupVal})
+
+		if result.InstanceConfig.StorageType != "" {
+			storageVal := result.InstanceConfig.StorageType
+			if result.InstanceConfig.StorageAutoResize && result.InstanceConfig.StorageAutoResizeGB > 0 {
+				storageVal = fmt.Sprintf("%s, auto-resize up to %d GB", storageVal, result.InstanceConfig.StorageAutoResizeGB)
+			} else if result.InstanceConfig.StorageAutoResize {
+				storageVal = fmt.Sprintf("%s, auto-resize enabled", storageVal)
+			}
+			t.AppendRow(table.Row{"Storage", storageVal})
+		}
+
+		if result.InstanceConfig.DeletionProtection {
+			t.AppendRow(table.Row{"Deletion Protection", "enabled"})
+		}
+
+		if len(result.InstanceConfig.Labels) > 0 {
+			labelParts := make([]string, 0, len(result.InstanceConfig.Labels))
+			for k, v := range result.InstanceConfig.Labels {
+				labelParts = append(labelParts, fmt.Sprintf("%s=%s", k, v))
+			}
+			sort.Strings(labelParts)
+			t.AppendRow(table.Row{"Labels", strings.Join(labelParts, ", ")})
+		}
+
+		if len(result.InstanceConfig.DatabaseFlags) > 0 {
+			flagParts := make([]string, 0, len(result.InstanceConfig.DatabaseFlags))
+			for _, f := range result.InstanceConfig.DatabaseFlags {
+				flagParts = append(flagParts, fmt.Sprintf("%s=%s", f.Name, f.Value))
+			}
+			t.AppendRow(table.Row{"DB Flags", strings.Join(flagParts, ", ")})
+		}
+
+		if result.InstanceConfig.QueryInsightsEnabled {
+			t.AppendRow(table.Row{"Query Insights", "enabled"})
+		}
+
+		t.Render()
+		fmt.Fprintln(w)
+	}
 
 	// Derived Insights table (most actionable metrics)
 	t := table.NewWriter()
@@ -416,6 +484,45 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 			})
 		}
 
+		t.Render()
+		fmt.Fprintln(w)
+	}
+
+	// Recommendations table
+	if result.Recommendations.Available && len(result.Recommendations.Items) > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("RECOMMENDATIONS")
+		t.AppendHeader(table.Row{"Impact", "State", "Description"})
+		for _, r := range result.Recommendations.Items {
+			t.AppendRow(table.Row{r.Impact, r.State, r.Description})
+		}
+		t.Render()
+		fmt.Fprintln(w)
+	}
+
+	// Query Insights table
+	if result.QueryInsights.Available && len(result.QueryInsights.TopQueries) > 0 {
+		t = table.NewWriter()
+		t.SetOutputMirror(w)
+		t.SetTitle("QUERY INSIGHTS — Top Queries by Total Execution Time")
+		t.AppendHeader(table.Row{"#", "Query", "Samples", "Avg (ms)", "Total (ms)"})
+		for i, q := range result.QueryInsights.TopQueries {
+			text := q.QueryText
+			if len(text) > 60 {
+				text = text[:57] + "..."
+			}
+			if text == "" {
+				text = q.QueryHash
+			}
+			t.AppendRow(table.Row{
+				i + 1,
+				text,
+				q.SampleCount,
+				fmt.Sprintf("%.1f", q.AvgLatencyMS),
+				fmt.Sprintf("%.0f", q.TotalTimeMS),
+			})
+		}
 		t.Render()
 		fmt.Fprintln(w)
 	}
