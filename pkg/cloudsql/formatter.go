@@ -8,6 +8,38 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
+// getStatusIndicator returns color-coded status emoji
+func getStatusIndicator(value, greenThreshold, yellowThreshold float64, higherIsBetter bool) string {
+	if higherIsBetter {
+		if value >= greenThreshold {
+			return "🟢"
+		} else if value >= yellowThreshold {
+			return "🟡"
+		}
+		return "🔴"
+	}
+	// Lower is better
+	if value <= greenThreshold {
+		return "🟢"
+	} else if value <= yellowThreshold {
+		return "🟡"
+	}
+	return "🔴"
+}
+
+func getCacheHitStatus(ratio float64) string {
+	return getStatusIndicator(ratio, 95.0, 90.0, true)
+}
+
+func getConnectionUtilStatus(pct float64) string {
+	return getStatusIndicator(pct, 70.0, 85.0, false)
+}
+
+func getTransactionAgeStatus(age int64) string {
+	ageFloat := float64(age)
+	return getStatusIndicator(ageFloat, 60.0, 300.0, false)
+}
+
 // FormatJSON writes the check result as JSON
 func FormatJSON(w io.Writer, result *CheckResult) error {
 	encoder := json.NewEncoder(w)
@@ -23,8 +55,59 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 	fmt.Fprintf(w, "Time Window: %s\n", result.TimeWindow)
 	fmt.Fprintf(w, "Instance Size: %d vCPU, %.0f GB RAM\n\n", result.InstanceSize.VCPU, result.InstanceSize.MemoryGB)
 
-	// Resources table
+	// Derived Insights table (most actionable metrics)
 	t := table.NewWriter()
+	t.SetOutputMirror(w)
+	t.SetTitle("DERIVED INSIGHTS")
+	t.AppendHeader(table.Row{"Metric", "Value", "Status"})
+
+	// Connection utilization
+	if result.DerivedInsights.ConnectionUtilizationPct > 0 {
+		connUtil := result.DerivedInsights.ConnectionUtilizationPct
+		status := getConnectionUtilStatus(connUtil)
+		t.AppendRow(table.Row{
+			"Connection Utilization",
+			fmt.Sprintf("%.1f%%", connUtil),
+			status,
+		})
+	}
+
+	// Cache hit ratio
+	if result.DerivedInsights.CacheHitRatio > 0 {
+		cacheRatio := result.DerivedInsights.CacheHitRatio
+		status := getCacheHitStatus(cacheRatio)
+		t.AppendRow(table.Row{
+			"Cache Hit Ratio",
+			fmt.Sprintf("%.1f%%", cacheRatio),
+			status,
+		})
+	}
+
+	// Oldest transaction age
+	if result.DerivedInsights.OldestTransactionAgeSec > 0 {
+		status := getTransactionAgeStatus(result.DerivedInsights.OldestTransactionAgeSec)
+		t.AppendRow(table.Row{
+			"Oldest Transaction Age",
+			fmt.Sprintf("%ds", result.DerivedInsights.OldestTransactionAgeSec),
+			status,
+		})
+	}
+
+	// Memory per connection
+	if result.Connections.Count.Current > 0 {
+		memPerConn := (result.InstanceSize.MemoryGB * 1024) / result.Connections.Count.Current
+		t.AppendRow(table.Row{
+			"Memory per Connection",
+			fmt.Sprintf("%.1f MB", memPerConn),
+			"-",
+		})
+	}
+
+	t.Render()
+	fmt.Fprintln(w)
+
+	// Resources table
+	t = table.NewWriter()
 	t.SetOutputMirror(w)
 	t.SetTitle("RESOURCES")
 	t.AppendHeader(table.Row{"Metric", "Current", "P50", "P99", "Max", "Unit"})
@@ -143,6 +226,102 @@ func FormatTable(w io.Writer, result *CheckResult) error {
 		t.Render()
 		fmt.Fprintln(w)
 	}
+
+	// Cache Performance table
+	t = table.NewWriter()
+	t.SetOutputMirror(w)
+	t.SetTitle("CACHE PERFORMANCE")
+	t.AppendHeader(table.Row{"Metric", "Value", "Unit"})
+
+	if result.Cache.HitRatio > 0 {
+		t.AppendRow(table.Row{
+			"Buffer Cache Hit Ratio",
+			fmt.Sprintf("%.2f", result.Cache.HitRatio),
+			"%",
+		})
+	}
+
+	if result.Cache.BlocksHit.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Cache Blocks Hit (P50)",
+			formatFloat(result.Cache.BlocksHit.P50),
+			"blocks/s",
+		})
+	}
+
+	if result.Cache.BlocksRead.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Disk Blocks Read (P50)",
+			formatFloat(result.Cache.BlocksRead.P50),
+			"blocks/s",
+		})
+	}
+
+	t.Render()
+	fmt.Fprintln(w)
+
+	// Throughput table
+	t = table.NewWriter()
+	t.SetOutputMirror(w)
+	t.SetTitle("THROUGHPUT")
+	t.AppendHeader(table.Row{"Metric", "P50", "P99", "Unit"})
+
+	if result.Throughput.TuplesReturned.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Tuples Returned/sec",
+			formatFloat(result.Throughput.TuplesReturned.P50),
+			formatFloat(result.Throughput.TuplesReturned.P99),
+			"tuples/s",
+		})
+	}
+
+	if result.Throughput.TuplesFetched.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Tuples Fetched/sec",
+			formatFloat(result.Throughput.TuplesFetched.P50),
+			formatFloat(result.Throughput.TuplesFetched.P99),
+			"tuples/s",
+		})
+	}
+
+	if result.Throughput.TuplesInserted.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Tuples Inserted/sec",
+			formatFloat(result.Throughput.TuplesInserted.P50),
+			formatFloat(result.Throughput.TuplesInserted.P99),
+			"tuples/s",
+		})
+	}
+
+	if result.Throughput.TuplesUpdated.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Tuples Updated/sec",
+			formatFloat(result.Throughput.TuplesUpdated.P50),
+			formatFloat(result.Throughput.TuplesUpdated.P99),
+			"tuples/s",
+		})
+	}
+
+	if result.Throughput.TuplesDeleted.P50 > 0 {
+		t.AppendRow(table.Row{
+			"Tuples Deleted/sec",
+			formatFloat(result.Throughput.TuplesDeleted.P50),
+			formatFloat(result.Throughput.TuplesDeleted.P99),
+			"tuples/s",
+		})
+	}
+
+	if result.Throughput.ReadWriteRatio > 0 {
+		t.AppendRow(table.Row{
+			"Read/Write Ratio",
+			fmt.Sprintf("%.2f", result.Throughput.ReadWriteRatio),
+			"-",
+			"",
+		})
+	}
+
+	t.Render()
+	fmt.Fprintln(w)
 
 	return nil
 }
