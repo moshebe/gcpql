@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
 )
 
 func TestParseTier(t *testing.T) {
@@ -118,5 +121,70 @@ func TestFetchAllInstancesFromURL_ServerError(t *testing.T) {
 	_, err := fetchAllInstancesFromURL(context.Background(), srv.Client(), srv.URL)
 	if err == nil {
 		t.Fatal("expected error for 500, got nil")
+	}
+}
+
+func TestNormalizeDBID(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"myproject:us-central1:myinstance", "myproject:myinstance"},
+		{"myproject:myinstance", "myproject:myinstance"},
+		{"single", "single"},
+	}
+	for _, tc := range tests {
+		got := normalizeDBID(tc.input)
+		if got != tc.want {
+			t.Errorf("normalizeDBID(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestFetchBulkUtilization(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+            "status": "success",
+            "data": {
+                "resultType": "matrix",
+                "result": [
+                    {
+                        "metric": {
+                            "__name__": "cloudsql.googleapis.com/database/cpu/utilization",
+                            "database_id": "myproject:us-central1:prod-db"
+                        },
+                        "values": [[1700000000, "0.42"], [1700000060, "0.45"]]
+                    },
+                    {
+                        "metric": {
+                            "__name__": "cloudsql.googleapis.com/database/cpu/utilization",
+                            "database_id": "myproject:us-east1:staging-db"
+                        },
+                        "values": [[1700000000, "0.08"]]
+                    }
+                ]
+            }
+        }`))
+	}))
+	defer srv.Close()
+
+	monClient := monitoring.NewClientForTesting(srv.Client(), srv.URL)
+	result, err := fetchBulkUtilization(context.Background(), monClient, "myproject", 5*time.Minute,
+		"cloudsql.googleapis.com/database/cpu/utilization")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 3-part database_id should be normalized to 2-part; last value taken
+	if v, ok := result["myproject:prod-db"]; !ok {
+		t.Error("missing myproject:prod-db")
+	} else if v != 0.45 {
+		t.Errorf("myproject:prod-db = %f, want 0.45", v)
+	}
+	if v, ok := result["myproject:staging-db"]; !ok {
+		t.Error("missing myproject:staging-db")
+	} else if v != 0.08 {
+		t.Errorf("myproject:staging-db = %f, want 0.08", v)
 	}
 }

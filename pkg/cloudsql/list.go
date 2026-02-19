@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gcp-metrics/gcp-metrics/pkg/monitoring"
 )
 
 // ListItem represents one CloudSQL instance in the list output.
@@ -112,4 +114,66 @@ func fetchAllInstancesFromURL(ctx context.Context, httpClient *http.Client, url 
 		})
 	}
 	return records, nil
+}
+
+// normalizeDBID converts a 3-part monitoring label "project:region:instance"
+// to the 2-part format "project:instance". 2-part IDs are returned unchanged.
+func normalizeDBID(id string) string {
+	parts := strings.Split(id, ":")
+	if len(parts) == 3 {
+		return parts[0] + ":" + parts[2]
+	}
+	return id
+}
+
+// fetchBulkUtilization queries a single metric type for all instances in a project.
+// Returns map[database_id → latest value] where database_id is "project:instance".
+// Monitoring errors return nil map (non-fatal; list shows "-" for affected instances).
+func fetchBulkUtilization(ctx context.Context, monClient *monitoring.Client, project string, since time.Duration, metricType string) (map[string]float64, error) {
+	now := time.Now()
+	query := fmt.Sprintf(`{__name__="%s"}`, metricType)
+	resp, err := monClient.QueryTimeSeries(ctx, monitoring.QueryTimeSeriesRequest{
+		Project:   project,
+		Query:     query,
+		StartTime: now.Add(-since),
+		EndTime:   now,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]float64, len(resp.TimeSeries))
+	for _, ts := range resp.TimeSeries {
+		tsMap, ok := ts.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		metricLabels, ok := tsMap["metric"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		dbID, ok := metricLabels["database_id"].(string)
+		if !ok {
+			continue
+		}
+		dbID = normalizeDBID(dbID)
+
+		values, ok := tsMap["values"].([]interface{})
+		if !ok || len(values) == 0 {
+			continue
+		}
+		// Take the last (most recent) point.
+		last, ok := values[len(values)-1].([]interface{})
+		if !ok || len(last) < 2 {
+			continue
+		}
+		valStr, ok := last[1].(string)
+		if !ok {
+			continue
+		}
+		var v float64
+		fmt.Sscanf(valStr, "%f", &v)
+		result[dbID] = v
+	}
+	return result, nil
 }
