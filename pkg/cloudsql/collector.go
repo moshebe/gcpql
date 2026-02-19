@@ -147,6 +147,35 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%.0fd", d.Hours()/24)
 }
 
+// estimateMaxConnections estimates max_connections based on instance memory
+// GCP uses: LEAST(memory_in_GB * 25, 4000) but applies per-tier limits
+func estimateMaxConnections(memoryGB float64) int {
+	if memoryGB <= 0 {
+		return 100 // Fallback for unknown
+	}
+
+	// GCP formula: memory * 25, capped at 4000
+	estimated := int(memoryGB * 25)
+	if estimated > 4000 {
+		estimated = 4000
+	}
+
+	// Additional tier-based caps
+	if memoryGB < 4 {
+		// Micro/small instances: cap at 250
+		if estimated > 250 {
+			estimated = 250
+		}
+	} else if memoryGB <= 16 {
+		// Medium instances: cap at 600
+		if estimated > 600 {
+			estimated = 600
+		}
+	}
+
+	return estimated
+}
+
 // populateResult fills the CheckResult from collected metric data
 func (c *Collector) populateResult(result *CheckResult, data map[string][]float64) {
 	// CPU
@@ -191,10 +220,14 @@ func (c *Collector) populateResult(result *CheckResult, data map[string][]float6
 	if points, ok := data["num_backends"]; ok && len(points) > 0 {
 		result.Connections.Count = CalculateStats(points, "")
 	}
+
+	// Max connections - fetch from metric or estimate from instance size
 	if points, ok := data["max_connections"]; ok && len(points) > 0 {
 		result.Connections.MaxConnections = int(points[len(points)-1])
 	} else {
-		result.Connections.MaxConnections = 100 // Default fallback
+		// GCP only emits max_connections metric if explicitly configured
+		// Estimate from instance memory using GCP's formula
+		result.Connections.MaxConnections = estimateMaxConnections(result.InstanceSize.MemoryGB)
 	}
 
 	// Query Performance
