@@ -237,3 +237,75 @@ func TestFetchBulkUtilization_EmptyValues(t *testing.T) {
 		t.Error("entry with empty values should not appear in result")
 	}
 }
+
+func TestListInstances(t *testing.T) {
+	// Admin API server
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+            "items": [
+                {
+                    "name": "prod-db",
+                    "state": "RUNNABLE",
+                    "databaseVersion": "POSTGRES_15",
+                    "region": "us-central1",
+                    "settings": {"tier": "db-custom-4-15360"}
+                }
+            ]
+        }`))
+	}))
+	defer adminSrv.Close()
+
+	// Monitoring server (same mock for both cpu + mem queries)
+	monSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+            "status": "success",
+            "data": {
+                "resultType": "matrix",
+                "result": [
+                    {
+                        "metric": {"database_id": "myproject:us-central1:prod-db"},
+                        "values": [[1700000000, "0.42"]]
+                    }
+                ]
+            }
+        }`))
+	}))
+	defer monSrv.Close()
+
+	monClient := monitoring.NewClientForTesting(monSrv.Client(), monSrv.URL)
+
+	result, err := listInstancesWithURL(context.Background(), adminSrv.Client(), adminSrv.URL,
+		monClient, "myproject", 5*time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("got %d items, want 1", len(result.Items))
+	}
+	item := result.Items[0]
+	if item.Instance != "myproject:prod-db" {
+		t.Errorf("Instance = %q, want myproject:prod-db", item.Instance)
+	}
+	if item.VCPU != 4 {
+		t.Errorf("VCPU = %d, want 4", item.VCPU)
+	}
+	if item.MemoryGB != 15.0 {
+		t.Errorf("MemoryGB = %f, want 15.0", item.MemoryGB)
+	}
+	if item.CPUPct == nil {
+		t.Error("CPUPct is nil, want value")
+	} else if *item.CPUPct != 42.0 {
+		t.Errorf("CPUPct = %f, want 42.0", *item.CPUPct)
+	}
+	if item.State != "RUNNABLE" {
+		t.Errorf("State = %q, want RUNNABLE", item.State)
+	}
+	if item.DBVersion != "POSTGRES_15" {
+		t.Errorf("DBVersion = %q, want POSTGRES_15", item.DBVersion)
+	}
+	if item.Region != "us-central1" {
+		t.Errorf("Region = %q, want us-central1", item.Region)
+	}
+}

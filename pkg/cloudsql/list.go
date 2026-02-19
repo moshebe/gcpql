@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"strings"
 	"time"
 
@@ -186,4 +187,73 @@ func fetchBulkUtilization(ctx context.Context, monClient *monitoring.Client, pro
 		result[dbID] = v
 	}
 	return result, nil
+}
+
+// ListInstances fetches all instances for a project with live CPU+mem metrics.
+// Monitoring failures are non-fatal; affected instances show nil CPUPct/MemPct.
+func ListInstances(ctx context.Context, httpClient *http.Client, monClient *monitoring.Client, project string, since time.Duration) (*ListResult, error) {
+	adminURL := fmt.Sprintf("https://sqladmin.googleapis.com/v1/projects/%s/instances", project)
+	return listInstancesWithURL(ctx, httpClient, adminURL, monClient, project, since)
+}
+
+// listInstancesWithURL is the testable inner implementation.
+func listInstancesWithURL(ctx context.Context, httpClient *http.Client, adminURL string, monClient *monitoring.Client, project string, since time.Duration) (*ListResult, error) {
+	var (
+		adminRecords []instanceAdminRecord
+		cpuMap       map[string]float64
+		memMap       map[string]float64
+		adminErr     error
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		adminRecords, adminErr = fetchAllInstancesFromURL(ctx, httpClient, adminURL)
+	}()
+	go func() {
+		defer wg.Done()
+		cpuMap, _ = fetchBulkUtilization(ctx, monClient, project, since,
+			"cloudsql.googleapis.com/database/cpu/utilization")
+	}()
+	go func() {
+		defer wg.Done()
+		memMap, _ = fetchBulkUtilization(ctx, monClient, project, since,
+			"cloudsql.googleapis.com/database/memory/utilization")
+	}()
+
+	wg.Wait()
+
+	if adminErr != nil {
+		return nil, fmt.Errorf("admin API: %w", adminErr)
+	}
+
+	items := make([]ListItem, 0, len(adminRecords))
+	for _, r := range adminRecords {
+		dbID := fmt.Sprintf("%s:%s", project, r.name)
+		item := ListItem{
+			Instance:  dbID,
+			State:     r.state,
+			DBVersion: r.dbVersion,
+			Region:    r.region,
+			VCPU:      r.vcpu,
+			MemoryGB:  r.memoryGB,
+		}
+		if v, ok := cpuMap[dbID]; ok {
+			pct := v * 100
+			item.CPUPct = &pct
+		}
+		if v, ok := memMap[dbID]; ok {
+			pct := v * 100
+			item.MemPct = &pct
+		}
+		items = append(items, item)
+	}
+
+	return &ListResult{
+		Project:   project,
+		Timestamp: time.Now(),
+		Items:     items,
+	}, nil
 }
