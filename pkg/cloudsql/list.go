@@ -77,6 +77,9 @@ func fetchAllInstancesFromURL(ctx context.Context, httpClient *http.Client, url 
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("project not found")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("admin API error (status %d): %s", resp.StatusCode, string(body))
 	}

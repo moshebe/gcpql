@@ -94,3 +94,29 @@ func TestFetchAllInstancesFromURL_Empty(t *testing.T) {
 		t.Errorf("got %d records, want 0", len(records))
 	}
 }
+
+func TestFetchAllInstancesFromURL_NotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "project not found"}`))
+	}))
+	defer srv.Close()
+
+	_, err := fetchAllInstancesFromURL(context.Background(), srv.Client(), srv.URL)
+	if err == nil {
+		t.Fatal("expected error for 404, got nil")
+	}
+}
+
+func TestFetchAllInstancesFromURL_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error": "internal error"}`))
+	}))
+	defer srv.Close()
+
+	_, err := fetchAllInstancesFromURL(context.Background(), srv.Client(), srv.URL)
+	if err == nil {
+		t.Fatal("expected error for 500, got nil")
+	}
+}
