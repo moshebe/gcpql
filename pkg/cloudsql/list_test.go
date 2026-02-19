@@ -13,6 +13,7 @@ func TestParseTier(t *testing.T) {
 		{"db-custom-4-15360", 4, 15.0},
 		{"db-custom-2-7680", 2, 7.5},
 		{"db-custom-1-3840", 1, 3.75},
+		{"db-custom-4-15360-hc", 0, 0},
 		{"db-n1-standard-4", 0, 0},
 		{"", 0, 0},
 		{"unknown", 0, 0},
