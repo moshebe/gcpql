@@ -1,0 +1,34 @@
+# Binaries
+gcpql
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# Go workspace
+go.work
+
+# Worktrees
+.worktrees/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+
+# Claude Code settings
+.claude/
+
+# Local scratch / tests
+tmp-tests/

@@ -1,0 +1,19 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - ineffassign
+    - staticcheck
+    - unconvert
+    - unused
+    - govet
+    - gofmt
+    - goimports
+  # errcheck disabled until unchecked errors are fixed (see CONTRIBUTING.md)
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
