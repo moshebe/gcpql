@@ -35,7 +35,7 @@ go build -o gcpql
 
 - GCP project with Cloud Monitoring API enabled
 - `gcloud auth application-default login`
-- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer) only when using those extensions
+- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer, Error Reporting viewer) only when using those extensions
 
 ## Quick start
 
@@ -49,6 +49,7 @@ gcpql cloudsql list --project my-project
 gcpql cloudsql check my-project:prod-db --format table
 gcpql cloudsql diagnose my-project:prod-db --query-insights
 gcpql bigquery check my-project --format table
+gcpql errorreporting list --project my-project --format table
 ```
 
 ## Commands
@@ -181,6 +182,23 @@ gcpql bigquery check my-project --dataset analytics --since 7d
 gcpql bigquery check my-project | jq '.slots'
 gcpql bigquery check my-project | jq '.top_queries[0]'
 ```
+
+### `errorreporting list`
+
+Top 50 error groups from GCP Error Reporting, ordered by count. Requires `roles/errorreporting.viewer`.
+
+```bash
+gcpql errorreporting list --project my-project
+gcpql errorreporting list --project my-project --format table
+gcpql errorreporting list --project my-project --since 1d --format table
+gcpql errorreporting list --project my-project --service my-service
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since` | 7d | Look-back window; mapped to nearest API period: `≤1h`, `≤6h`, `≤24h`, `≤7d`, `>7d` (30d) |
+| `--service` | all | Filter to a specific service name |
+| `--format` | `json` | `json` or `table` |
 
 ---
 

@@ -29,6 +29,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 		option.WithScopes(
 			"https://www.googleapis.com/auth/monitoring.read",
 			"https://www.googleapis.com/auth/sqlservice.admin",
+			"https://www.googleapis.com/auth/clouderrorreporting",
 		))
 	if err != nil {
 		return nil, fmt.Errorf("creating authenticated HTTP client: %w", err)
