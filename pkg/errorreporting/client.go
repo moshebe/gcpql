@@ -87,6 +87,7 @@ func FetchGroups(ctx context.Context, httpClient *http.Client, project string, o
 			Count         string `json:"count"`
 			FirstSeenTime string `json:"firstSeenTime"`
 			LastSeenTime  string `json:"lastSeenTime"`
+
 			Representative struct {
 				Message string `json:"message"`
 			} `json:"representative"`
