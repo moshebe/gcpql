@@ -86,7 +86,8 @@ type DiagnoseResult struct {
 
 // Metadata tracks collection quality.
 type Metadata struct {
-	MetricsCollected     int   `json:"metrics_collected"`
-	MetricsNoData        int   `json:"metrics_no_data"`
-	CollectionDurationMS int64 `json:"collection_duration_ms"`
+	MetricsCollected     int      `json:"metrics_collected"`
+	MetricsNoData        int      `json:"metrics_no_data"`
+	MetricsUnavailable   []string `json:"metrics_unavailable,omitempty"`
+	CollectionDurationMS int64    `json:"collection_duration_ms"`
 }
