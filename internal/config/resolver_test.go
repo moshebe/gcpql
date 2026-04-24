@@ -33,12 +33,12 @@ func TestResolveProject_FromEnv(t *testing.T) {
 }
 
 func TestResolveProject_NoProjectFound(t *testing.T) {
-	// Save and restore original gcloudCommandFunc
-	originalFunc := gcloudCommandFunc
-	defer func() { gcloudCommandFunc = originalFunc }()
+	// Save and restore original GcloudCommandFunc
+	originalFunc := GcloudCommandFunc
+	defer func() { GcloudCommandFunc = originalFunc }()
 
 	// Mock gcloud command to return error
-	gcloudCommandFunc = func() (string, error) {
+	GcloudCommandFunc = func() (string, error) {
 		return "", errors.New("command not found")
 	}
 
