@@ -101,3 +101,20 @@ func TestExtractSeriesSums(t *testing.T) {
 		t.Errorf("sub-a: got %v, want 60", got["sub-a"])
 	}
 }
+
+func TestSortSnapshots(t *testing.T) {
+	input := []SubscriptionSnapshot{
+		{Name: "ok", Status: SeverityInfo, OldestUnackedSec: 0},
+		{Name: "warn-low", Status: SeverityWarning, OldestUnackedSec: 100},
+		{Name: "crit", Status: SeverityCritical, OldestUnackedSec: 4000},
+		{Name: "warn-high", Status: SeverityWarning, OldestUnackedSec: 700},
+	}
+	sortSnapshots(input)
+
+	wantOrder := []string{"crit", "warn-high", "warn-low", "ok"}
+	for i, want := range wantOrder {
+		if input[i].Name != want {
+			t.Errorf("position %d: got %q, want %q", i, input[i].Name, want)
+		}
+	}
+}

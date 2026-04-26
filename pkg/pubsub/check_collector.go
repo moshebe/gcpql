@@ -143,9 +143,8 @@ func extractSeriesSums(resp *monitoring.QueryTimeSeriesResponse, labelKey string
 
 // CollectCheckMetrics fetches a health snapshot of all subscriptions in the project.
 func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts CheckOptions) (*CheckResult, error) {
-	startTime := time.Now()
-	rangeStr := formatDuration(opts.Since)
 	now := time.Now()
+	rangeStr := formatDuration(opts.Since)
 	windowStart := now.Add(-opts.Since)
 
 	type querySpec struct {
@@ -216,7 +215,7 @@ func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts
 	meta := Metadata{}
 	for res := range ch {
 		if res.err != nil {
-			log.Printf("collecting pubsub %s: %v", res.key, res.err)
+			log.Printf("Warning: collecting pubsub %s: %v", res.key, res.err)
 			meta.MetricsNoData++
 			continue
 		}
@@ -251,11 +250,11 @@ func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts
 	}
 
 	sortSnapshots(snapshots)
-	meta.CollectionDurationMS = time.Since(startTime).Milliseconds()
+	meta.CollectionDurationMS = time.Since(now).Milliseconds()
 
 	return &CheckResult{
 		Project:       opts.Project,
-		Timestamp:     time.Now(),
+		Timestamp:     now,
 		Subscriptions: snapshots,
 		Metadata:      meta,
 	}, nil
