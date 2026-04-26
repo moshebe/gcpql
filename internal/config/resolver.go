@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// gcloudCommandFunc is the function used to get gcloud project (mockable for tests)
-var gcloudCommandFunc = func() (string, error) {
+// GcloudCommandFunc is the function used to get gcloud project (mockable for tests)
+var GcloudCommandFunc = func() (string, error) {
 	cmd := exec.Command("gcloud", "config", "get-value", "project")
 	output, err := cmd.Output()
 	if err != nil {
@@ -35,7 +35,7 @@ func ResolveProject(flagValue string) (string, error) {
 	}
 
 	// 3. gcloud config
-	project, err := gcloudCommandFunc()
+	project, err := GcloudCommandFunc()
 	if err == nil && project != "" {
 		return project, nil
 	}
