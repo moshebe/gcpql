@@ -70,6 +70,14 @@ func FormatCheckTable(w io.Writer, r *CheckResult, top int) error {
 		}
 	}
 
+	// Insights section
+	if len(r.Insights) > 0 {
+		fmt.Fprintf(w, "\nInsights:\n")
+		for _, ins := range r.Insights {
+			fmt.Fprintf(w, "  * %s: %s\n", ins.Instance, ins.Message)
+		}
+	}
+
 	fmt.Fprintf(w, "\n%d instances checked (%d metrics collected, %d no data)\n",
 		len(r.Instances), r.Metadata.MetricsCollected, r.Metadata.MetricsNoData)
 	return nil

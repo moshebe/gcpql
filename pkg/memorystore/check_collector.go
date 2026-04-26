@@ -54,6 +54,9 @@ func computeStatus(s InstanceSnapshot) (Severity, string) {
 	if s.MemoryUsage > 0.75 {
 		return SeverityWarning, fmt.Sprintf("memory at %.0f%% (>75%%)", s.MemoryUsage*100)
 	}
+	if s.RejectedConnections > 0 {
+		return SeverityCritical, fmt.Sprintf("%d rejected connections", s.RejectedConnections)
+	}
 	if s.EvictedKeys > 0 {
 		return SeverityWarning, fmt.Sprintf("%d evicted keys (memory pressure)", s.EvictedKeys)
 	}
@@ -188,6 +191,7 @@ func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts
 		{key: "hit_ratio", query: fmt.Sprintf(`{__name__="redis.googleapis.com/stats/cache_hit_ratio"}[%s]`, rangeStr)},
 		{key: "keys", query: fmt.Sprintf(`{__name__="redis.googleapis.com/keyspace/keys"}[%s]`, rangeStr)},
 		{key: "evicted", query: fmt.Sprintf(`{__name__="redis.googleapis.com/stats/evicted_keys"}[%s]`, rangeStr), sum: true},
+		{key: "rejected", query: fmt.Sprintf(`{__name__="redis.googleapis.com/stats/reject_connections_count"}[%s]`, rangeStr), sum: true},
 		{key: "uptime", query: fmt.Sprintf(`{__name__="redis.googleapis.com/server/uptime"}[%s]`, rangeStr)},
 	}
 
@@ -267,6 +271,9 @@ func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts
 		if v, ok := allMetrics["evicted"][id]; ok {
 			snap.EvictedKeys = int64(v)
 		}
+		if v, ok := allMetrics["rejected"][id]; ok {
+			snap.RejectedConnections = int64(v)
+		}
 		if v, ok := allMetrics["uptime"][id]; ok {
 			snap.UptimeSec = v
 		}
@@ -275,12 +282,57 @@ func CollectCheckMetrics(ctx context.Context, monClient *monitoring.Client, opts
 	}
 
 	sortSnapshots(snapshots)
+	insights := generateInsights(snapshots)
 	meta.CollectionDurationMS = time.Since(now).Milliseconds()
 
 	return &CheckResult{
 		Project:   opts.Project,
 		Timestamp: now,
 		Instances: snapshots,
+		Insights:  insights,
 		Metadata:  meta,
 	}, nil
+}
+
+const (
+	highClientThreshold = 500
+	longUptimeDays      = 90
+)
+
+// generateInsights produces actionable observations that don't warrant a WARNING/CRITICAL status.
+func generateInsights(snapshots []InstanceSnapshot) []Insight {
+	var insights []Insight
+
+	// High client counts
+	for _, s := range snapshots {
+		if s.ConnectedClients > highClientThreshold {
+			insights = append(insights, Insight{
+				Instance: s.Name,
+				Message:  fmt.Sprintf("%d connected clients — review connection pooling", s.ConnectedClients),
+			})
+		}
+	}
+
+	// Long uptime: if most instances are old, summarize; otherwise list individually.
+	var longUptime []InstanceSnapshot
+	for _, s := range snapshots {
+		if s.UptimeSec/86400 > longUptimeDays {
+			longUptime = append(longUptime, s)
+		}
+	}
+	if len(longUptime) > len(snapshots)/2 {
+		insights = append(insights, Insight{
+			Instance: "(all)",
+			Message:  fmt.Sprintf("%d/%d instances have >%dd uptime — consider scheduling maintenance", len(longUptime), len(snapshots), longUptimeDays),
+		})
+	} else {
+		for _, s := range longUptime {
+			insights = append(insights, Insight{
+				Instance: s.Name,
+				Message:  fmt.Sprintf("uptime %dd — consider scheduling a maintenance window", int(s.UptimeSec/86400)),
+			})
+		}
+	}
+
+	return insights
 }

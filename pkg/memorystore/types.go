@@ -13,15 +13,22 @@ const (
 
 // InstanceSnapshot is one row in the check output.
 type InstanceSnapshot struct {
-	Name            string   `json:"name"`
-	MemoryUsage     float64  `json:"memory_usage_ratio"`
-	ConnectedClients int64   `json:"connected_clients"`
-	CacheHitRatio   float64  `json:"cache_hit_ratio"`
-	KeyCount        int64    `json:"key_count"`
-	EvictedKeys     int64    `json:"evicted_keys"`
-	UptimeSec       float64  `json:"uptime_sec"`
-	Status          Severity `json:"status"`
-	StatusReason    string   `json:"status_reason"`
+	Name                string   `json:"name"`
+	MemoryUsage         float64  `json:"memory_usage_ratio"`
+	ConnectedClients    int64    `json:"connected_clients"`
+	CacheHitRatio       float64  `json:"cache_hit_ratio"`
+	KeyCount            int64    `json:"key_count"`
+	EvictedKeys         int64    `json:"evicted_keys"`
+	RejectedConnections int64    `json:"rejected_connections"`
+	UptimeSec           float64  `json:"uptime_sec"`
+	Status              Severity `json:"status"`
+	StatusReason        string   `json:"status_reason"`
+}
+
+// Insight is a non-critical observation surfaced in the output.
+type Insight struct {
+	Instance string `json:"instance"`
+	Message  string `json:"message"`
 }
 
 // CheckResult is the full output of `memorystore check`.
@@ -29,6 +36,7 @@ type CheckResult struct {
 	Project   string             `json:"project"`
 	Timestamp time.Time          `json:"timestamp"`
 	Instances []InstanceSnapshot `json:"instances"`
+	Insights  []Insight          `json:"insights,omitempty"`
 	Metadata  Metadata           `json:"metadata"`
 }
 
