@@ -35,7 +35,7 @@ go build -o gcpql
 
 - GCP project with Cloud Monitoring API enabled
 - `gcloud auth application-default login`
-- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer, Error Reporting viewer) only when using those extensions
+- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer, Error Reporting viewer, PubSub viewer) only when using those extensions
 
 ## Quick start
 
@@ -50,6 +50,8 @@ gcpql cloudsql check my-project:prod-db --format table
 gcpql cloudsql diagnose my-project:prod-db --query-insights
 gcpql bigquery check my-project --format table
 gcpql errorreporting list --project my-project --format table
+gcpql pubsub check my-project --format table
+gcpql pubsub diagnose my-project/my-sub --format table
 ```
 
 ## Commands
@@ -199,6 +201,102 @@ gcpql errorreporting list --project my-project --service my-service
 | `--since` | 7d | Look-back window; mapped to nearest API period: `≤1h`, `≤6h`, `≤24h`, `≤7d`, `>7d` (30d) |
 | `--service` | all | Filter to a specific service name |
 | `--format` | `json` | `json` or `table` |
+
+### `pubsub check`
+
+Project-wide health snapshot of all subscriptions. Surfaces backlog size, consumer lag, expired ack deadlines, and DLQ counts — with per-subscription status and a top offenders summary.
+
+Requires `roles/pubsub.viewer` in addition to `roles/monitoring.viewer`.
+
+```bash
+gcpql pubsub check my-project
+gcpql pubsub check my-project --format table
+gcpql pubsub check my-project --since 30m --top 10
+gcpql pubsub check my-project | jq '.subscriptions[] | select(.status == "CRITICAL")'
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since` | `1h` | Look-back window for rate metrics (5m, 1h, 7d) |
+| `--top` | `5` | Number of worst subscriptions shown in top-offenders list |
+| `--format` | `json` | `json` or `table` |
+
+```
+Project: my-project  (4 subscriptions)
+
+┌──────────────────────────────────┬─────────┬──────────────┬──────────┬─────┬──────────┐
+│ SUBSCRIPTION                     │ BACKLOG │ OLDEST UNACK │ EXP. ACK │ DLQ │ STATUS   │
+├──────────────────────────────────┼─────────┼──────────────┼──────────┼─────┼──────────┤
+│ orders-subscription              │  58,320 │ 2h15m        │      143 │   0 │ CRITICAL │
+│ notifications-subscription       │  12,500 │ 12m30s       │        0 │   0 │ WARNING  │
+│ analytics-subscription           │     420 │ 45s          │        0 │   0 │ OK       │
+│ audit-subscription               │       0 │ -            │        0 │   0 │ OK       │
+└──────────────────────────────────┴─────────┴──────────────┴──────────┴─────┴──────────┘
+
+Top 2 offender(s):
+  🔴 orders-subscription       oldest unacked: 2h15m
+  🟡 notifications-subscription  backlog: 12,500 messages
+```
+
+### `pubsub diagnose`
+
+Deep-dive diagnosis of a single subscription and its parent topic. Collects 10 metrics (subscription backlog, consumer lag, expired ack deadlines, DLQ, ack rate, pull/push error rates, topic publish rate, publish errors, message size) and runs them through a rule engine to produce prioritized findings with remediation steps.
+
+Requires `roles/pubsub.viewer` in addition to `roles/monitoring.viewer`.
+
+```bash
+gcpql pubsub diagnose my-sub --project my-project
+gcpql pubsub diagnose projects/my-project/subscriptions/my-sub
+gcpql pubsub diagnose my-sub --project my-project --format table
+gcpql pubsub diagnose my-sub --project my-project --since 6h | jq '.findings'
+```
+
+**Subscription ID formats:** `my-sub` (needs `--project`) · `projects/my-project/subscriptions/my-sub`
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--project` | gcloud config | GCP project ID (required if not using full subscription path) |
+| `--since` | `1h` | Look-back window (5m, 1h, 7d) |
+| `--format` | `json` | `json` or `table` |
+
+```
+Subscription: my-project/orders-subscription
+Topic:        my-project/orders-topic
+Time Window:  1h
+
+┌──────────────────────────────────────┐
+│ LOAD SUMMARY                         │
+├─────────────────────────┬────────────┤
+│ METRIC                  │ VALUE      │
+├─────────────────────────┼────────────┤
+│ Backlog (current)       │ 58,320     │
+│ Oldest Unacked          │ 2h15m      │
+│ Ack Rate                │ 0 msg/s    │
+│ Publish Rate            │ 142 msg/s  │
+│ Avg Message Size        │ 1.2 KB     │
+└─────────────────────────┴────────────┘
+
+3 issue(s) found:
+
+🔴 CRITICAL  Subscription Severely Backlogged
+            Oldest unacked message: 2h15m (threshold: 1h)
+            → Check if consumers are running and processing messages
+            → Inspect consumer logs for processing errors or panics
+            → Consider scaling out consumer replicas
+            → Verify the subscription ack deadline is long enough for processing time
+
+🔴 CRITICAL  No Active Consumer
+            Backlog is 58,320 messages but ack rate is 0 msg/s
+            → Check if consumer service is deployed and healthy
+            → Verify subscription credentials and IAM permissions
+            → Check if consumer is crashing before acknowledging
+
+🟡 WARNING   Consumers Missing Ack Deadline
+            143 expired ack deadlines in window
+            → Increase the subscription ack deadline if processing takes longer
+            → Reduce per-message processing time or process in smaller batches
+            → Check for downstream bottlenecks causing slow processing
+```
 
 ---
 

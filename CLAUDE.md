@@ -25,10 +25,14 @@ cmd/                   # Cobra subcommands
   cloudsql_diagnose.go # cloudsql diagnose <instance>
   bigquery.go          # bigquery parent command
   bigquery_check.go    # bigquery check <project>
+  pubsub.go            # pubsub parent command
+  pubsub_check.go      # pubsub check <project>
+  pubsub_diagnose.go   # pubsub diagnose <subscription>
 pkg/
   monitoring/          # GCP Prometheus API client (PromQL over HTTP)
   cloudsql/            # check, list, diagnose: collector, admin, enrichment, formatter, types, derived, aggregator
   bigquery/            # check: client, check_collector, formatter, types, aggregator
+  pubsub/              # check, diagnose: types, subscription, check_collector, diagnose_collector, diagnose, formatter
   timerange/           # --since flag parser (5m / 1h / 7d)
   output/              # raw JSON formatter (query command only)
 internal/
@@ -40,7 +44,7 @@ docs/
 
 ## Key Design Patterns
 
-**Auth:** Application Default Credentials. Scopes: `monitoring.read` + `sqlservice.admin`.
+**Auth:** Application Default Credentials. Scopes: `monitoring.read` + `sqlservice.admin` + `pubsub`.
 
 **monitoring.Client** (`pkg/monitoring/client.go`):
 - POSTs to `monitoring.googleapis.com/v1/projects/{project}/location/global/prometheus/api/v1/query`
@@ -83,3 +87,9 @@ go vet ./...                      # lint
 - `my-instance` (requires `--project`)
 - `my-project:my-instance`
 - `my-project:region:my-instance`
+
+## Subscription ID Parsing (PubSub)
+
+`pubsub.ParseSubscriptionID` accepts:
+- `my-sub` (requires `--project`)
+- `projects/my-project/subscriptions/my-sub` (GCP canonical)
