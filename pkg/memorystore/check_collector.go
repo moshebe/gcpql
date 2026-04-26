@@ -57,8 +57,8 @@ func computeStatus(s InstanceSnapshot) (Severity, string) {
 	if s.EvictedKeys > 0 {
 		return SeverityWarning, fmt.Sprintf("%d evicted keys (memory pressure)", s.EvictedKeys)
 	}
-	if s.CacheHitRatio > 0 && s.CacheHitRatio < 0.50 && s.KeyCount > 0 {
-		return SeverityWarning, fmt.Sprintf("low hit ratio %.0f%% (<50%%)", s.CacheHitRatio*100)
+	if s.CacheHitRatio > 0 && s.CacheHitRatio < 0.30 && s.KeyCount > 100 {
+		return SeverityWarning, fmt.Sprintf("low hit ratio %.0f%% (<30%%)", s.CacheHitRatio*100)
 	}
 	return SeverityInfo, "OK"
 }
