@@ -35,7 +35,7 @@ go build -o gcpql
 
 - GCP project with Cloud Monitoring API enabled
 - `gcloud auth application-default login`
-- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer, Error Reporting viewer, PubSub viewer) only when using those extensions
+- IAM: `roles/monitoring.viewer` (all commands); extension-specific roles (e.g. Cloud SQL viewer, BigQuery Data Viewer, Error Reporting viewer, PubSub viewer, Redis viewer) only when using those extensions
 
 ## Quick start
 
@@ -52,6 +52,7 @@ gcpql bigquery check my-project --format table
 gcpql errorreporting list --project my-project --format table
 gcpql pubsub check my-project --format table
 gcpql pubsub diagnose my-project/my-sub --format table
+gcpql memorystore check my-project --format table
 ```
 
 ## Commands
@@ -297,6 +298,54 @@ Time Window:  1h
             → Reduce per-message processing time or process in smaller batches
             → Check for downstream bottlenecks causing slow processing
 ```
+
+### `memorystore check`
+
+Project-wide health snapshot of all Memorystore Redis instances. Surfaces memory usage, connected clients, cache hit ratio, key count, evictions, rejected connections, and uptime — with per-instance status and actionable insights.
+
+Requires `roles/redis.viewer` in addition to `roles/monitoring.viewer`.
+
+```bash
+gcpql memorystore check my-project
+gcpql memorystore check my-project --format table
+gcpql memorystore check my-project --since 6h --top 10
+gcpql memorystore check my-project | jq '.instances[] | select(.status != "INFO")'
+gcpql memorystore check my-project | jq '.insights'
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--since` | `1h` | Look-back window (5m, 1h, 7d) |
+| `--top` | `5` | Number of worst instances shown in top-offenders list |
+| `--format` | `json` | `json` or `table` |
+
+```
+Project:   my-project
+Timestamp: 2026-04-26 14:38:03 UTC
+
+┌──────────────────────┬──────────┬─────────┬───────────┬─────────┬─────────┬─────────┬──────────┐
+│ INSTANCE             │ MEMORY % │ CLIENTS │ HIT RATIO │    KEYS │ EVICTED │ UPTIME  │ STATUS   │
+├──────────────────────┼──────────┼─────────┼───────────┼─────────┼─────────┼─────────┼──────────┤
+│ session-cache        │ 92.1%    │     120 │ 99.2%     │ 2500000 │    1580 │ 45d12h  │ CRITICAL │
+│ rate-limiter         │ 78.3%    │      32 │ -         │       0 │       0 │ 190d3h  │ WARNING  │
+│ app-cache            │ 19.6%    │     890 │ 89.0%     │  279693 │       0 │ 186d22h │ INFO     │
+│ feature-flags        │ 0.4%     │       5 │ -         │       0 │       0 │ 2d21h   │ INFO     │
+└──────────────────────┴──────────┴─────────┴───────────┴─────────┴─────────┴─────────┴──────────┘
+
+Top offenders (worst 2):
+  1. [CRITICAL] session-cache — memory at 92% (>90%)
+  2. [WARNING] rate-limiter — memory at 78% (>75%)
+
+Insights:
+  * app-cache: 890 connected clients — review connection pooling
+  * (all): 3/4 instances have >90d uptime — consider scheduling maintenance
+
+4 instances checked (7 metrics collected, 0 no data)
+```
+
+**Status thresholds:**
+- CRITICAL: memory >90%, rejected connections >0, uptime <5m (recent restart)
+- WARNING: memory >75%, evictions >0, hit ratio <30% (with >100 keys)
 
 ---
 

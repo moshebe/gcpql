@@ -25,11 +25,14 @@ cmd/                   # Cobra subcommands
   pubsub.go             # pubsub parent command
   pubsub_check.go       # pubsub check <project>
   pubsub_diagnose.go    # pubsub diagnose <subscription>
+  memorystore.go        # memorystore parent command
+  memorystore_check.go  # memorystore check <project>
 pkg/
   monitoring/           # GCP Prometheus API client (PromQL over HTTP)
   cloudsql/              # check, list, diagnose: collector, admin, enrichment, formatter, types, derived, aggregator
   bigquery/              # check: client, check_collector, formatter, types, aggregator
   pubsub/                # check, diagnose: types, subscription, check_collector, diagnose_collector, diagnose, formatter
+  memorystore/           # check: types, check_collector, formatter
   timerange/             # --since flag parser (5m / 1h / 7d)
   output/                # raw JSON formatter (query command only)
 internal/
